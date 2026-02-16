@@ -1,4 +1,5 @@
-import { Layout, BarChart3, FileText, FolderOpen, LucideIcon } from 'lucide-react';
+import { useEffect } from 'react';
+import { Database, BarChart3, FileText, FolderOpen, LucideIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore, AgentType } from '@/store/useAppStore';
 
@@ -13,12 +14,12 @@ interface AgentDef {
 
 const agents: AgentDef[] = [
   {
-    id: 'screen-designer',
-    title: 'Screen Designer',
-    description: 'Build pixel-perfect banking UIs with compliance baked in',
-    icon: Layout,
-    glowClass: 'glow-purple',
-    iconBg: 'bg-purple-500/10 text-purple-500',
+    id: 'data-modeler',
+    title: 'Data Modeler',
+    description: 'Design and generate data models for financial products',
+    icon: Database,
+    glowClass: 'glow-blue',
+    iconBg: 'bg-citi-blue/10 text-citi-blue',
   },
   {
     id: 'data-analysis',
@@ -47,7 +48,24 @@ const agents: AgentDef[] = [
 ];
 
 export function AppSidebar() {
-  const { activeAgent, setActiveAgent } = useAppStore();
+  const { activeAgent, setActiveAgent, sessions, setChatInput, setChatOpen, setCurrentSession, addSession, startSession, clearSessions } = useAppStore();
+
+  // load sessions from backend once
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await fetch('http://localhost:4555/sessions');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!mounted) return;
+        data.forEach((s: any) => addSession({ ...s, createdAt: new Date(s.createdAt), lastUpdated: new Date(s.lastUpdated) }));
+      } catch (err) {
+        // ignore for mock server
+      }
+    })();
+    return () => { mounted = false; };
+  }, [addSession]);
 
   return (
     <aside className="w-[320px] min-w-[320px] h-screen flex flex-col citi-sidebar-nav border-r border-[hsl(var(--sidebar-border))]">
@@ -83,7 +101,12 @@ export function AppSidebar() {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.05 }}
-                onClick={() => setActiveAgent(isActive ? null : agent.id)}
+                onClick={() => {
+                  if (isActive) return setActiveAgent(null);
+                  setActiveAgent(agent.id);
+                  setChatOpen(true);
+                  setCurrentSession(null); // Clear session so a new one is created on first message
+                }}
                 className={`w-full text-left p-3 rounded-xl transition-all duration-200 group ${
                   isActive
                     ? 'bg-[hsl(var(--sidebar-accent))] ' + agent.glowClass
@@ -111,26 +134,52 @@ export function AppSidebar() {
         </div>
       </div>
 
-      {/* User */}
+      {/* Compact area - reserved for History / quick links */}
       <div className="px-4 py-4 border-t border-[hsl(var(--sidebar-border))]">
-        <div className="flex items-center gap-3 px-2">
-          <div className="w-9 h-9 rounded-full bg-citi-blue/20 flex items-center justify-center">
-            <span className="text-citi-blue text-sm font-semibold">PS</span>
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-[hsl(var(--citi-sidebar-text-active))] truncate">
-              Priya Sharma
-            </p>
-            <p className="text-[10px] text-[hsl(var(--citi-sidebar-text))]">
-              Head of Digital Product
-            </p>
-          </div>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[11px] font-medium text-[hsl(var(--citi-sidebar-text))] uppercase tracking-wider">History</p>
+          {sessions.length > 0 && (
+            <button
+              onClick={async () => {
+                try {
+                  await fetch('http://localhost:4555/sessions', { method: 'DELETE' });
+                  clearSessions();
+                } catch (err) {
+                  console.error('Failed to clear sessions', err);
+                }
+              }}
+              className="text-[10px] text-[hsl(var(--citi-sidebar-text))] hover:text-red-600 transition-colors"
+              title="Clear all sessions"
+            >
+              Clear
+            </button>
+          )}
         </div>
-        <div className="mt-3 mx-2 px-3 py-1.5 bg-[hsl(var(--sidebar-accent))] rounded-lg">
-          <p className="text-[10px] text-emerald-400 flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-glow" />
-            All actions 100% audited
-          </p>
+        <div className="h-80 overflow-y-auto space-y-2 pr-1">
+          {sessions.length === 0 && (
+            <div className="text-[11px] text-[hsl(var(--citi-sidebar-text))]">No recent sessions</div>
+          )}
+
+          {sessions.slice(-6).reverse().map((s) => (
+            <button
+              key={s.id}
+              onClick={() => {
+                // open session: set current session, set active agent and open chat
+                setCurrentSession(s.id);
+                setActiveAgent(s.agent);
+                setChatOpen(true);
+              }}
+              className="w-full text-left flex items-center gap-3 p-2 rounded hover:bg-slate-50 transition-colors"
+            >
+              <div className={`w-9 h-9 rounded-md flex items-center justify-center text-sm font-semibold bg-[hsl(var(--sidebar-accent))] text-[hsl(var(--citi-sidebar-text-active))]`}>
+                {s.agent ? s.agent.toString().slice(0,2).toUpperCase() : 'S'}
+              </div>
+              <div className="min-w-0">
+                <div className="text-sm text-[hsl(var(--citi-sidebar-text))] truncate">{s.title || (s.agent || 'Session')}</div>
+                <div className="text-[11px] text-[hsl(var(--citi-sidebar-text))] opacity-70 mt-0.5">{new Date(s.lastUpdated).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+              </div>
+            </button>
+          ))}
         </div>
       </div>
     </aside>
