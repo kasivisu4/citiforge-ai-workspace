@@ -945,30 +945,30 @@ export function Canvas() {
   // Table editing removed: schema updates should come from backend flows
 
   return (
-    <div className="flex-1 h-screen bg-white flex flex-col overflow-hidden">
+    <div className="flex-1 h-screen bg-background flex flex-col overflow-hidden">
       {/* Top bar - always visible */}
-      <div className="flex items-center justify-end p-4 border-b">
-        <div className="text-sm font-medium text-gray-700">Priya Sharma</div>
+      <div className="flex items-center justify-end p-4 border-b border-border">
+        <div className="text-sm font-medium text-foreground">Priya Sharma</div>
       </div>
 
       {/* Main content area */}
       {!activeAgent ? (
-        <div className="flex-1 bg-gradient-to-br from-blue-50 to-white flex items-center justify-center relative overflow-hidden">
+        <div className="flex-1 citi-gradient-bg citi-grid-pattern flex items-center justify-center relative overflow-hidden">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             className="text-center px-8"
           >
-            <div className="w-20 h-20 rounded-2xl bg-blue-100 flex items-center justify-center mb-6 border border-blue-300">
-              <Activity size={40} className="text-blue-600" />
+            <div className="w-20 h-20 rounded-2xl bg-citi-light-blue flex items-center justify-center mb-6 border border-citi-blue/30">
+              <Activity size={40} className="text-citi-blue" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to CitiForge</h1>
-            <p className="text-gray-600 mb-8 max-w-md">
+            <h1 className="text-3xl font-bold text-foreground mb-2">Welcome to CitiForge</h1>
+            <p className="text-muted-foreground mb-8 max-w-md">
               Select an AI agent from the sidebar to get started with powerful data modeling, analysis, and automation tools.
             </p>
             <button
               onClick={() => setPresetModalOpen(true)}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-blue-500 text-white rounded-lg font-medium text-sm hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/30"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors shadow-lg shadow-primary/30"
             >
               <Plus size={16} />
               Explore Presets
@@ -978,7 +978,7 @@ export function Canvas() {
       ) : (
         <>
           {/* Messages Container */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-white">
+          <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-background">
         <AnimatePresence>
           {(!messages.some(m => m.sessionId === currentSessionId)) && suggestionsShown && activeAgent === 'data-modeler' && (
             <motion.div
@@ -1063,7 +1063,7 @@ export function Canvas() {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-gray-200 bg-white p-6 space-y-4">
+      <div className="border-t border-border bg-card p-6 space-y-4">
         {/* Mode selector moved into the chat input bar for compact layout */}
 
         <div className="flex items-start gap-3">
@@ -1075,7 +1075,7 @@ export function Canvas() {
               aria-label="Chat mode"
               value={chatMode}
               onChange={(e) => setChatMode(e.target.value as ChatMode)}
-              className="h-10 px-2 py-1 text-sm rounded border bg-white"
+              className="h-10 px-3 py-1 text-sm rounded-lg border border-border bg-card text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring appearance-none cursor-pointer"
             >
               {modes.map((m) => (
                 <option key={m.id} value={m.id}>{m.label}</option>
@@ -1107,7 +1107,7 @@ export function Canvas() {
         </AnimatePresence>
 
         {/* Input field */}
-        <div className="relative z-20 flex items-center gap-2 bg-gray-100 border border-gray-300 rounded-lg hover:border-gray-400 transition-colors focus-within:border-blue-500 focus-within:bg-white focus-within:ring-1 focus-within:ring-blue-300">
+        <div className="relative z-20 flex items-center gap-2 bg-muted/50 border border-border rounded-lg hover:border-border/80 transition-colors focus-within:border-primary/50 focus-within:bg-card focus-within:ring-1 focus-within:ring-ring">
           {/* Mode select is rendered to the left of the input (only one instance above) */}
           {/* Attachment button */}
           <button
@@ -1156,7 +1156,7 @@ export function Canvas() {
                 }}
                 placeholder={isLocked ? 'Action required: approve or modify the plan to continue' : 'Ask your agent anything...'}
                 disabled={isLocked}
-                className="flex-1 h-10 bg-transparent text-sm text-gray-900 placeholder:text-gray-500 focus:outline-none px-2 disabled:opacity-50"
+                className="flex-1 h-10 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none px-2 disabled:opacity-50"
               />
             );
           })()}
@@ -1165,7 +1165,7 @@ export function Canvas() {
           <button
             onClick={handleSend}
             disabled={!chatInput.trim()}
-            className="p-2 text-gray-600 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center shrink-0"
+            className="p-2 text-muted-foreground hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center shrink-0"
             title="Send"
             aria-label="Send message"
           >
@@ -1234,7 +1234,7 @@ export function Canvas() {
         </div>
         </div>
         
-        <p className="text-[10px] text-gray-500 text-center">Press Enter to send, Shift+Enter for new line</p>
+        <p className="text-[10px] text-muted-foreground text-center">Press Enter to send, Shift+Enter for new line</p>
       </div>
         </>
       )}
