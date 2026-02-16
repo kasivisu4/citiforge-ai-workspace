@@ -748,6 +748,7 @@ export function Canvas() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const chatInputRef = useRef<HTMLInputElement | null>(null);
   const [mentionIndex, setMentionIndex] = useState<number | null>(null);
+  const [showMentions, setShowMentions] = useState(false);
   const mentionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const atSuggestions = ['@productName', '@managerId', '@launchDate', '@status'];
 
@@ -1118,14 +1119,25 @@ export function Canvas() {
                   <input
                     ref={chatInputRef}
                     value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
+                    onChange={(e) => {
+                      setChatInput(e.target.value);
+                      // Show mentions when @ is freshly typed
+                      const val = e.target.value;
+                      const lastAt = val.lastIndexOf('@');
+                      if (lastAt !== -1 && lastAt === val.length - 1) {
+                        setShowMentions(true);
+                        setMentionIndex(null);
+                      } else if (!val.includes('@')) {
+                        setShowMentions(false);
+                      }
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         if (!isLocked) handleSend();
                         return;
                       }
-                      if (e.key === 'ArrowDown' && chatInput.includes('@')) {
+                      if (e.key === 'ArrowDown' && showMentions) {
                         e.preventDefault();
                         setMentionIndex(0);
                         setTimeout(() => mentionRefs.current[0]?.focus(), 0);
@@ -1152,7 +1164,7 @@ export function Canvas() {
 
               {/* @-mention popup */}
               <AnimatePresence>
-                {chatInput.includes('@') && (
+                {showMentions && (
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1195,6 +1207,7 @@ export function Canvas() {
                               const newVal = chatInput.slice(0, i) + s + ' ';
                               setChatInput(newVal);
                               setMentionIndex(null);
+                              setShowMentions(false);
                               setTimeout(() => chatInputRef.current?.focus(), 0);
                             }
                           }}
@@ -1203,6 +1216,7 @@ export function Canvas() {
                             const newVal = chatInput.slice(0, i) + s + ' ';
                             setChatInput(newVal);
                             setMentionIndex(null);
+                            setShowMentions(false);
                             setTimeout(() => chatInputRef.current?.focus(), 0);
                           }}
                           className={`w-full text-left px-3 py-2 text-xs rounded-md font-mono transition-colors focus:outline-none ${
