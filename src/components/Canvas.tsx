@@ -4,11 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, ChatMode, type HITLResponse as StoreHITLResponse } from '@/store/useAppStore';
 import { Send, Sparkles, Brain, Zap, Users, Paperclip, X, FileText, Database, Upload, Box, BarChart3, Plus, Activity, Clock, Check, MessageSquare, Copy, Download, Edit3, Search, ArrowUpDown } from 'lucide-react';
 
-const modes: { id: ChatMode; label: string; icon: typeof Sparkles }[] = [
-  { id: 'creative', label: 'Creative', icon: Sparkles },
-  { id: 'deep-think', label: 'Deep Think', icon: Brain },
-  { id: 'sota', label: 'SOTA', icon: Zap },
-];
+const modes: {id: ChatMode;label: string;icon: typeof Sparkles;}[] = [
+{ id: 'creative', label: 'Creative', icon: Sparkles },
+{ id: 'deep-think', label: 'Deep Think', icon: Brain },
+{ id: 'sota', label: 'SOTA', icon: Zap }];
+
 
 interface TableSchema {
   tableName: string;
@@ -50,31 +50,31 @@ interface AgentResponse {
 
 const suggestedQueries = {
   'data-modeler': [
-    {
-      icon: Database,
-      title: 'Design Model for Products',
-      description: 'Create a new data model for your financial products with AI guidance',
-      color: 'bg-blue-500/10 border-blue-200/30'
-    },
-    {
-      icon: Upload,
-      title: 'Generate from Sample File',
-      description: 'Upload a CSV or JSON file to auto-generate your data model',
-      color: 'bg-purple-500/10 border-purple-200/30'
-    },
-    {
-      icon: Box,
-      title: 'Generate from Sample Table',
-      description: 'Select from existing database tables to create your model',
-      color: 'bg-amber-500/10 border-amber-200/30'
-    },
-    {
-      icon: BarChart3,
-      title: 'Explore Templates',
-      description: 'Browse pre-built models for common banking products',
-      color: 'bg-emerald-500/10 border-emerald-200/30'
-    },
-  ]
+  {
+    icon: Database,
+    title: 'Design Model for Products',
+    description: 'Create a new data model for your financial products with AI guidance',
+    color: 'bg-blue-500/10 border-blue-200/30'
+  },
+  {
+    icon: Upload,
+    title: 'Generate from Sample File',
+    description: 'Upload a CSV or JSON file to auto-generate your data model',
+    color: 'bg-purple-500/10 border-purple-200/30'
+  },
+  {
+    icon: Box,
+    title: 'Generate from Sample Table',
+    description: 'Select from existing database tables to create your model',
+    color: 'bg-amber-500/10 border-amber-200/30'
+  },
+  {
+    icon: BarChart3,
+    title: 'Explore Templates',
+    description: 'Browse pre-built models for common banking products',
+    color: 'bg-emerald-500/10 border-emerald-200/30'
+  }]
+
 };
 
 interface QueryCard {
@@ -84,7 +84,7 @@ interface QueryCard {
   color: string;
 }
 
-function SuggestedQueryCard({ card, onSelect }: { card: QueryCard; onSelect: (title: string) => void }) {
+function SuggestedQueryCard({ card, onSelect }: {card: QueryCard;onSelect: (title: string) => void;}) {
   const Icon = card.icon;
   return (
     <motion.button
@@ -92,8 +92,8 @@ function SuggestedQueryCard({ card, onSelect }: { card: QueryCard; onSelect: (ti
       animate={{ opacity: 1, scale: 1 }}
       whileHover={{ scale: 1.02 }}
       onClick={() => onSelect(card.title)}
-      className={`p-4 rounded-lg border ${card.color} hover:shadow-md transition-all text-left w-full group hover:border-blue-300`}
-    >
+      className={`p-4 rounded-lg border ${card.color} hover:shadow-md transition-all text-left w-full group hover:border-blue-300`}>
+
       <div className="flex items-start gap-3">
         <Icon size={20} className="text-blue-600 mt-1 shrink-0" />
         <div className="flex-1 min-w-0">
@@ -101,8 +101,8 @@ function SuggestedQueryCard({ card, onSelect }: { card: QueryCard; onSelect: (ti
           <p className="text-xs text-gray-600 mt-1">{card.description}</p>
         </div>
       </div>
-    </motion.button>
-  );
+    </motion.button>);
+
 }
 
 function TypingIndicator() {
@@ -111,11 +111,11 @@ function TypingIndicator() {
       <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0s' }} />
       <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0.1s' }} />
       <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0.2s' }} />
-    </div>
-  );
+    </div>);
+
 }
 
-function TableSchemaDisplay({ schema }: { schema: TableSchema }) {
+function TableSchemaDisplay({ schema }: {schema: TableSchema;}) {
   const [copied, setCopied] = useState(false);
 
   const copyToClipboard = () => {
@@ -128,8 +128,8 @@ function TableSchemaDisplay({ schema }: { schema: TableSchema }) {
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-lg p-4 space-y-3 max-w-2xl"
-    >
+      className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-lg p-4 space-y-3 max-w-2xl">
+
       <div className="flex items-start justify-between gap-4">
         <div>
           <h3 className="text-sm font-semibold text-foreground">{schema.tableName}</h3>
@@ -138,8 +138,8 @@ function TableSchemaDisplay({ schema }: { schema: TableSchema }) {
         <button
           onClick={copyToClipboard}
           className="p-2 hover:bg-muted rounded transition-colors text-muted-foreground hover:text-foreground shrink-0"
-          title="Copy JSON"
-        >
+          title="Copy JSON">
+
           {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
         </button>
       </div>
@@ -155,20 +155,20 @@ function TableSchemaDisplay({ schema }: { schema: TableSchema }) {
             </tr>
           </thead>
           <tbody>
-            {schema.columns.map((col, idx) => (
-              <tr key={idx} className="border-b border-border/30 hover:bg-primary/5 transition-colors">
+            {schema.columns.map((col, idx) =>
+            <tr key={idx} className="border-b border-border/30 hover:bg-primary/5 transition-colors">
                 <td className="py-2 px-2 font-mono text-foreground">{col.name}</td>
                 <td className="py-2 px-2 text-primary font-mono">{col.type}</td>
                 <td className="py-2 px-2">
-                  {col.nullable ? (
-                    <span className="text-amber-600 text-xs bg-amber-50 px-2 py-1 rounded">Yes</span>
-                  ) : (
-                    <span className="text-emerald-600 text-xs bg-emerald-50 px-2 py-1 rounded">No</span>
-                  )}
+                  {col.nullable ?
+                <span className="text-amber-600 text-xs bg-amber-50 px-2 py-1 rounded">Yes</span> :
+
+                <span className="text-emerald-600 text-xs bg-emerald-50 px-2 py-1 rounded">No</span>
+                }
                 </td>
                 <td className="py-2 px-2 text-muted-foreground">{col.description}</td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
@@ -177,26 +177,26 @@ function TableSchemaDisplay({ schema }: { schema: TableSchema }) {
         <Download size={14} className="text-muted-foreground" />
         <span className="text-xs text-muted-foreground">Click copy to export JSON schema</span>
       </div>
-    </motion.div>
-  );
+    </motion.div>);
+
 }
 
 // Generic content renderers
-function TextRenderer({ content }: { content: string }) {
+function TextRenderer({ content }: {content: string;}) {
   return <p className="whitespace-pre-wrap text-sm">{content}</p>;
 }
 
-function EditableMarkdownTable({ content, messageId, onUpdate }: { content: string; messageId: string; onUpdate: (id: string, updatedContent: string) => void }) {
+function EditableMarkdownTable({ content, messageId, onUpdate }: {content: string;messageId: string;onUpdate: (id: string, updatedContent: string) => void;}) {
   const lines = content.split('\n').filter((l) => l.trim());
   const tableLines = lines.filter((l) => l.includes('|'));
   const headerLine = tableLines[0];
   const columns = headerLine.split('|').map((c) => c.trim()).filter(Boolean);
   const dataLines = tableLines.slice(2);
-  
+
   const [rows, setRows] = useState(dataLines.map((line) =>
-    line.split('|').map((c) => c.trim()).filter(Boolean)
+  line.split('|').map((c) => c.trim()).filter(Boolean)
   ));
-  const [editCell, setEditCell] = useState<{ row: number; col: number } | null>(null);
+  const [editCell, setEditCell] = useState<{row: number;col: number;} | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCol, setFilterCol] = useState<number | null>(null);
   const [sortCol, setSortCol] = useState<number | null>(null);
@@ -249,8 +249,8 @@ function EditableMarkdownTable({ content, messageId, onUpdate }: { content: stri
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white border border-gray-200 rounded-lg p-4 space-y-3 max-w-5xl"
-    >
+      className="bg-white border border-gray-200 rounded-lg p-4 space-y-3 max-w-5xl">
+
       {/* Search and Filter Controls */}
       <div className="space-y-2 bg-gray-50 p-3 rounded border border-gray-200">
         <div className="flex items-center gap-2">
@@ -260,17 +260,17 @@ function EditableMarkdownTable({ content, messageId, onUpdate }: { content: stri
             placeholder="Search in table..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-1 px-3 py-1 border border-gray-300 rounded text-xs"
-          />
+            className="flex-1 px-3 py-1 border border-gray-300 rounded text-xs" />
+
           <select
             value={filterCol ?? 'all'}
             onChange={(e) => setFilterCol(e.target.value === 'all' ? null : parseInt(e.target.value))}
-            className="px-3 py-1 border border-gray-300 rounded text-xs"
-          >
+            className="px-3 py-1 border border-gray-300 rounded text-xs">
+
             <option value="all">All columns</option>
-            {columns.map((col, idx) => (
-              <option key={idx} value={idx}>{col}</option>
-            ))}
+            {columns.map((col, idx) =>
+            <option key={idx} value={idx}>{col}</option>
+            )}
           </select>
         </div>
         <div className="text-xs text-gray-600">
@@ -280,132 +280,132 @@ function EditableMarkdownTable({ content, messageId, onUpdate }: { content: stri
 
       {/* Table */}
       <div className="overflow-x-auto overflow-y-auto max-h-[500px] border border-gray-200 rounded">
-        {!useVirtual && (
-          <table className="w-full text-xs border-collapse">
+        {!useVirtual &&
+        <table className="w-full text-xs border-collapse">
             <thead>
               <tr className="border-b border-gray-300 bg-gray-50 sticky top-0">
-                {columns.map((col, idx) => (
-                  <th
-                    key={idx}
-                    onClick={() => {
-                      if (sortCol === idx) {
-                        setSortAsc(!sortAsc);
-                      } else {
-                        setSortCol(idx);
-                        setSortAsc(true);
-                      }
-                    }}
-                    className="text-left py-2 px-3 font-semibold text-gray-700 whitespace-nowrap cursor-pointer hover:bg-gray-200 transition-colors group"
-                  >
+                {columns.map((col, idx) =>
+              <th
+                key={idx}
+                onClick={() => {
+                  if (sortCol === idx) {
+                    setSortAsc(!sortAsc);
+                  } else {
+                    setSortCol(idx);
+                    setSortAsc(true);
+                  }
+                }}
+                className="text-left py-2 px-3 font-semibold text-gray-700 whitespace-nowrap cursor-pointer hover:bg-gray-200 transition-colors group">
+
                     <div className="flex items-center gap-1">
                       {col}
-                      {sortCol === idx && (
-                        <ArrowUpDown size={12} className={sortAsc ? '' : 'rotate-180'} />
-                      )}
+                      {sortCol === idx &&
+                  <ArrowUpDown size={12} className={sortAsc ? '' : 'rotate-180'} />
+                  }
                     </div>
                   </th>
-                ))}
+              )}
               </tr>
             </thead>
             <tbody>
               {filteredRows.map((row, displayIdx) => {
-                const actualRowIdx = rows.indexOf(row);
-                return (
-                  <tr key={actualRowIdx} className="border-b border-gray-200 hover:bg-gray-50">
-                    {row.map((cell, colIdx) => (
-                      <td
-                        key={`${actualRowIdx}-${colIdx}`}
-                        className="py-2 px-3 text-gray-700 whitespace-nowrap cursor-text hover:bg-blue-50"
-                        onClick={() => setEditCell({ row: actualRowIdx, col: colIdx })}
-                      >
-                        {editCell?.row === actualRowIdx && editCell?.col === colIdx ? (
-                          <input
-                            autoFocus
-                            type="text"
-                            value={cell}
-                            onChange={(e) => {
-                              const newRows = [...rows];
-                              newRows[actualRowIdx][colIdx] = e.target.value;
-                              setRows(newRows);
-                            }}
-                            onBlur={() => setEditCell(null)}
-                            onKeyDown={(e) => e.key === 'Enter' && setEditCell(null)}
-                            className="w-full bg-white border border-blue-400 rounded px-2 py-1 text-gray-900 text-xs"
-                          />
-                        ) : (
-                          <span>{cell}</span>
-                        )}
+              const actualRowIdx = rows.indexOf(row);
+              return (
+                <tr key={actualRowIdx} className="border-b border-gray-200 hover:bg-gray-50">
+                    {row.map((cell, colIdx) =>
+                  <td
+                    key={`${actualRowIdx}-${colIdx}`}
+                    className="py-2 px-3 text-gray-700 whitespace-nowrap cursor-text hover:bg-blue-50"
+                    onClick={() => setEditCell({ row: actualRowIdx, col: colIdx })}>
+
+                        {editCell?.row === actualRowIdx && editCell?.col === colIdx ?
+                    <input
+                      autoFocus
+                      type="text"
+                      value={cell}
+                      onChange={(e) => {
+                        const newRows = [...rows];
+                        newRows[actualRowIdx][colIdx] = e.target.value;
+                        setRows(newRows);
+                      }}
+                      onBlur={() => setEditCell(null)}
+                      onKeyDown={(e) => e.key === 'Enter' && setEditCell(null)}
+                      className="w-full bg-white border border-blue-400 rounded px-2 py-1 text-gray-900 text-xs" /> :
+
+
+                    <span>{cell}</span>
+                    }
                       </td>
-                    ))}
-                  </tr>
-                );
-              })}
+                  )}
+                  </tr>);
+
+            })}
             </tbody>
           </table>
-        )}
+        }
 
-        {useVirtual && (
-          <div className="w-full text-xs">
+        {useVirtual &&
+        <div className="w-full text-xs">
             {/* Header as grid */}
             <div className="grid grid-cols-[repeat(auto-fill,minmax(0,1fr))] gap-0 border-b border-gray-300 bg-gray-50 sticky top-0">
-              {columns.map((col, idx) => (
-                <div key={idx} className="py-2 px-3 font-semibold text-gray-700 text-left">
+              {columns.map((col, idx) =>
+            <div key={idx} className="py-2 px-3 font-semibold text-gray-700 text-left">
                   <div className="flex items-center gap-1">
                     {col}
-                    {sortCol === idx && (
-                      <ArrowUpDown size={12} className={sortAsc ? '' : 'rotate-180'} />
-                    )}
+                    {sortCol === idx &&
+                <ArrowUpDown size={12} className={sortAsc ? '' : 'rotate-180'} />
+                }
                   </div>
                 </div>
-              ))}
+            )}
             </div>
 
             <List
-              height={Math.min(500, filteredRows.length * 36)}
-              itemCount={filteredRows.length}
-              itemSize={36}
-              width={'100%'}
-            >
+            height={Math.min(500, filteredRows.length * 36)}
+            itemCount={filteredRows.length}
+            itemSize={36}
+            width={'100%'}>
+
               {({ index, style }) => {
-                const row = filteredRows[index];
-                const actualRowIdx = rows.indexOf(row);
-                return (
+              const row = filteredRows[index];
+              const actualRowIdx = rows.indexOf(row);
+              return (
+                <div
+                  style={style}
+                  key={actualRowIdx}
+                  className={`grid grid-cols-[repeat(${columns.length},minmax(0,1fr))] gap-0 border-b border-gray-200 hover:bg-gray-50 items-center py-2 px-0`}>
+
+                    {row.map((cell, colIdx) =>
                   <div
-                    style={style}
-                    key={actualRowIdx}
-                    className={`grid grid-cols-[repeat(${columns.length},minmax(0,1fr))] gap-0 border-b border-gray-200 hover:bg-gray-50 items-center py-2 px-0`}
-                  >
-                    {row.map((cell, colIdx) => (
-                      <div
-                        key={`${actualRowIdx}-${colIdx}`}
-                        className="py-0 px-3 text-gray-700 whitespace-nowrap cursor-text hover:bg-blue-50"
-                        onClick={() => setEditCell({ row: actualRowIdx, col: colIdx })}
-                      >
-                        {editCell?.row === actualRowIdx && editCell?.col === colIdx ? (
-                          <input
-                            autoFocus
-                            type="text"
-                            value={cell}
-                            onChange={(e) => {
-                              const newRows = [...rows];
-                              newRows[actualRowIdx][colIdx] = e.target.value;
-                              setRows(newRows);
-                            }}
-                            onBlur={() => setEditCell(null)}
-                            onKeyDown={(e) => e.key === 'Enter' && setEditCell(null)}
-                            className="w-full bg-white border border-blue-400 rounded px-2 py-1 text-gray-900 text-xs"
-                          />
-                        ) : (
-                          <span>{cell}</span>
-                        )}
+                    key={`${actualRowIdx}-${colIdx}`}
+                    className="py-0 px-3 text-gray-700 whitespace-nowrap cursor-text hover:bg-blue-50"
+                    onClick={() => setEditCell({ row: actualRowIdx, col: colIdx })}>
+
+                        {editCell?.row === actualRowIdx && editCell?.col === colIdx ?
+                    <input
+                      autoFocus
+                      type="text"
+                      value={cell}
+                      onChange={(e) => {
+                        const newRows = [...rows];
+                        newRows[actualRowIdx][colIdx] = e.target.value;
+                        setRows(newRows);
+                      }}
+                      onBlur={() => setEditCell(null)}
+                      onKeyDown={(e) => e.key === 'Enter' && setEditCell(null)}
+                      className="w-full bg-white border border-blue-400 rounded px-2 py-1 text-gray-900 text-xs" /> :
+
+
+                    <span>{cell}</span>
+                    }
                       </div>
-                    ))}
-                  </div>
-                );
-              }}
+                  )}
+                  </div>);
+
+            }}
             </List>
           </div>
-        )}
+        }
       </div>
 
       {/* Action Buttons - SEPARATE FROM HITL */}
@@ -413,21 +413,21 @@ function EditableMarkdownTable({ content, messageId, onUpdate }: { content: stri
         <span className="text-xs text-gray-600">Click any cell to edit • Scroll to view all columns</span>
         <button
           onClick={handleSave}
-          className="px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium text-sm hover:bg-emerald-600 transition-all"
-        >
+          className="px-4 py-2 bg-emerald-500 text-white rounded-lg font-medium text-sm hover:bg-emerald-600 transition-all">
+
           Save Changes
         </button>
       </div>
-    </motion.div>
-  );
+    </motion.div>);
+
 }
 
-function MarkdownRenderer({ content, messageId, isEditing, onEdit }: { content: string; messageId?: string; isEditing?: boolean; onEdit?: (id: string, updatedContent: string) => void }) {
+function MarkdownRenderer({ content, messageId, isEditing, onEdit }: {content: string;messageId?: string;isEditing?: boolean;onEdit?: (id: string, updatedContent: string) => void;}) {
   // Check if content contains a markdown table
   if (content.includes('|')) {
     const lines = content.split('\n').filter((l) => l.trim());
     const isTable = lines.some((l) => l.includes('|'));
-    
+
     if (isTable && isEditing && messageId && onEdit) {
       return <EditableMarkdownTable content={content} messageId={messageId} onUpdate={onEdit} />;
     }
@@ -439,67 +439,67 @@ function MarkdownRenderer({ content, messageId, isEditing, onEdit }: { content: 
       const columns = headerLine.split('|').map((c) => c.trim()).filter(Boolean);
       const dataLines = tableLines.slice(2); // Skip header and separator
       const rows = dataLines.map((line) =>
-        line.split('|').map((c) => c.trim()).filter(Boolean)
+      line.split('|').map((c) => c.trim()).filter(Boolean)
       );
 
       return (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white border border-gray-200 rounded-lg p-4 space-y-3 max-w-4xl"
-        >
+          className="bg-white border border-gray-200 rounded-lg p-4 space-y-3 max-w-4xl">
+
           <div className="overflow-x-auto overflow-y-auto max-h-[500px] border border-gray-200 rounded">
             <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="border-b border-gray-300 bg-gray-50 sticky top-0">
-                  {columns.map((col, idx) => (
-                    <th key={idx} className="text-left py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">
+                  {columns.map((col, idx) =>
+                  <th key={idx} className="text-left py-2 px-3 font-semibold text-gray-700 whitespace-nowrap">
                       {col}
                     </th>
-                  ))}
+                  )}
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, rIdx) => (
-                  <tr key={rIdx} className="border-b border-gray-200 hover:bg-gray-50">
-                    {row.map((cell, cIdx) => (
-                      <td key={cIdx} className="py-2 px-3 text-gray-700 whitespace-nowrap">
+                {rows.map((row, rIdx) =>
+                <tr key={rIdx} className="border-b border-gray-200 hover:bg-gray-50">
+                    {row.map((cell, cIdx) =>
+                  <td key={cIdx} className="py-2 px-3 text-gray-700 whitespace-nowrap">
                         {cell}
                       </td>
-                    ))}
+                  )}
                   </tr>
-                ))}
+                )}
               </tbody>
             </table>
           </div>
-        </motion.div>
-      );
+        </motion.div>);
+
     }
   }
 
   // Regular markdown rendering
-  const html = content
-    .split('\n')
-    .filter((line) => line.trim())
-    .map((line) => {
-      if (line.startsWith('# ')) return `<h1 class="text-lg font-bold mt-2 mb-1">${line.slice(2)}</h1>`;
-      if (line.startsWith('## ')) return `<h2 class="text-base font-semibold mt-1.5 mb-1">${line.slice(3)}</h2>`;
-      if (line.startsWith('### ')) return `<h3 class="text-sm font-semibold mt-1 mb-0.5">${line.slice(4)}</h3>`;
-      if (line.startsWith('- ') || line.startsWith('* ')) return `<li class="ml-4 text-sm">${line.slice(2)}</li>`;
-      if (line.includes('**') && line.includes('**')) {
-        const processed = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-        return `<p class="text-sm">${processed}</p>`;
-      }
-      if (line.trim()) return `<p class="text-sm">${line}</p>`;
-      return '';
-    })
-    .filter(Boolean)
-    .join('');
+  const html = content.
+  split('\n').
+  filter((line) => line.trim()).
+  map((line) => {
+    if (line.startsWith('# ')) return `<h1 class="text-lg font-bold mt-2 mb-1">${line.slice(2)}</h1>`;
+    if (line.startsWith('## ')) return `<h2 class="text-base font-semibold mt-1.5 mb-1">${line.slice(3)}</h2>`;
+    if (line.startsWith('### ')) return `<h3 class="text-sm font-semibold mt-1 mb-0.5">${line.slice(4)}</h3>`;
+    if (line.startsWith('- ') || line.startsWith('* ')) return `<li class="ml-4 text-sm">${line.slice(2)}</li>`;
+    if (line.includes('**') && line.includes('**')) {
+      const processed = line.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      return `<p class="text-sm">${processed}</p>`;
+    }
+    if (line.trim()) return `<p class="text-sm">${line}</p>`;
+    return '';
+  }).
+  filter(Boolean).
+  join('');
 
   return <div className="space-y-1" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-function TableRenderer({ content, metadata }: { content: string; metadata?: Record<string, any> }) {
+function TableRenderer({ content, metadata }: {content: string;metadata?: Record<string, any>;}) {
   const [copied, setCopied] = useState(false);
 
   // Parse table from content or metadata
@@ -515,7 +515,7 @@ function TableRenderer({ content, metadata }: { content: string; metadata?: Reco
     if (lines.length > 0) {
       columns = lines[0].split('|').map((c) => c.trim()).filter(Boolean);
       rows = lines.slice(1).map((line) =>
-        line.split('|').map((c) => c.trim()).filter(Boolean)
+      line.split('|').map((c) => c.trim()).filter(Boolean)
       );
     }
   }
@@ -531,15 +531,15 @@ function TableRenderer({ content, metadata }: { content: string; metadata?: Reco
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white border border-gray-200 rounded-lg p-4 space-y-3 max-w-3xl overflow-x-auto"
-    >
+      className="bg-white border border-gray-200 rounded-lg p-4 space-y-3 max-w-3xl overflow-x-auto">
+
       <div className="flex items-center justify-between gap-4">
         <span className="text-xs font-medium text-gray-600">Table View</span>
         <button
           onClick={copyToClipboard}
           className="p-2 hover:bg-gray-100 rounded transition-colors text-gray-600 hover:text-gray-900"
-          title="Copy to CSV"
-        >
+          title="Copy to CSV">
+
           {copied ? <Check size={16} className="text-emerald-600" /> : <Copy size={16} />}
         </button>
       </div>
@@ -547,44 +547,44 @@ function TableRenderer({ content, metadata }: { content: string; metadata?: Reco
       <table className="w-full text-xs border-collapse">
         <thead>
           <tr className="border-b border-gray-300 bg-gray-50">
-            {columns.map((col, idx) => (
-              <th key={idx} className="text-left py-2 px-3 font-semibold text-gray-700">
+            {columns.map((col, idx) =>
+            <th key={idx} className="text-left py-2 px-3 font-semibold text-gray-700">
                 {col}
               </th>
-            ))}
+            )}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, rIdx) => (
-            <tr key={rIdx} className="border-b border-gray-200 hover:bg-gray-50">
-              {row.map((cell, cIdx) => (
-                <td key={cIdx} className="py-2 px-3 text-gray-700">
+          {rows.map((row, rIdx) =>
+          <tr key={rIdx} className="border-b border-gray-200 hover:bg-gray-50">
+              {row.map((cell, cIdx) =>
+            <td key={cIdx} className="py-2 px-3 text-gray-700">
                   {cell}
                 </td>
-              ))}
+            )}
             </tr>
-          ))}
+          )}
         </tbody>
       </table>
-    </motion.div>
-  );
+    </motion.div>);
+
 }
 
-function GenericHITLForm({ hitl, messageId, onAction }: { hitl: StoreHITLResponse; messageId?: string; onAction: (actionId: string, action: string, messageId?: string) => void }) {
+function GenericHITLForm({ hitl, messageId, onAction }: {hitl: StoreHITLResponse;messageId?: string;onAction: (actionId: string, action: string, messageId?: string) => void;}) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white border-2 border-gray-200 rounded-lg p-4 space-y-3 max-w-2xl"
-    >
-      {hitl.title && (
-        <div>
+      className="bg-white border-2 border-gray-200 rounded-lg p-4 space-y-3 max-w-2xl">
+
+      {hitl.title &&
+      <div>
           <h3 className="text-sm font-semibold text-gray-900">{hitl.title}</h3>
-          {hitl.description && (
-            <p className="text-xs text-gray-600 mt-1">{hitl.description}</p>
-          )}
+          {hitl.description &&
+        <p className="text-xs text-gray-600 mt-1">{hitl.description}</p>
+        }
         </div>
-      )}
+      }
 
       <div className="flex flex-wrap gap-2 pt-2">
         {hitl.options.map((option) => {
@@ -599,35 +599,35 @@ function GenericHITLForm({ hitl, messageId, onAction }: { hitl: StoreHITLRespons
               whileTap={{ scale: 0.95 }}
               onClick={() => onAction(option.id, option.action, messageId)}
               className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
-                isPrimary
-                  ? 'bg-blue-500 text-white hover:bg-blue-600 shadow-sm'
-                  : isDestructive
-                  ? 'bg-red-500/20 text-red-700 border border-red-200 hover:bg-red-500/30'
-                  : 'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'
-              }`}
-            >
+              isPrimary ?
+              'bg-blue-500 text-white hover:bg-blue-600 shadow-sm' :
+              isDestructive ?
+              'bg-red-500/20 text-red-700 border border-red-200 hover:bg-red-500/30' :
+              'bg-gray-100 text-gray-700 border border-gray-300 hover:bg-gray-200'}`
+              }>
+
               {option.label}
-            </motion.button>
-          );
+            </motion.button>);
+
         })}
       </div>
 
-      {hitl.metadata?.hint && (
-        <p className="text-xs text-gray-600 pt-2 border-t border-gray-200">{hitl.metadata.hint}</p>
-      )}
-    </motion.div>
-  );
+      {hitl.metadata?.hint &&
+      <p className="text-xs text-gray-600 pt-2 border-t border-gray-200">{hitl.metadata.hint}</p>
+      }
+    </motion.div>);
+
 }
 
 function ContentRenderer({
   contentType,
   content,
-  metadata,
-}: {
-  contentType?: string;
-  content: string;
-  metadata?: Record<string, any>;
-}) {
+  metadata
+
+
+
+
+}: {contentType?: string;content: string;metadata?: Record<string, any>;}) {
   if (contentType === 'markdown') {
     return <MarkdownRenderer content={content} />;
   }
@@ -640,11 +640,11 @@ function ContentRenderer({
 // Simulate a streaming backend response. Streams descriptive text in chunks,
 // and appends markdown table content in one shot if present.
 function simulateStreamingResponse(
-  userInput: string,
-  messageId: string,
-  sendChunk: (id: string, chunk: string) => void,
-  finalize: (id: string, finalContent: string, meta?: any) => void
-) {
+userInput: string,
+messageId: string,
+sendChunk: (id: string, chunk: string) => void,
+finalize: (id: string, finalContent: string, meta?: any) => void)
+{
   const mock = generateMockHITLResponse(userInput as string);
 
   const full = mock.content || '';
@@ -708,33 +708,33 @@ function generateMockHITLResponse(userInput: string): AgentResponse {
         title: 'Approve Data Model Plan',
         description: 'Does this schema match your requirements?',
         options: [
-          {
-            id: 'approve',
-            label: 'Approve Plan',
-            action: 'approve_plan',
-            style: 'primary',
-          },
-          {
-            id: 'edit-schema',
-            label: 'Edit Schema',
-            action: 'edit_schema',
-            style: 'secondary',
-          },
-        ],
-        metadata: {
-          hint: 'You can still edit the schema after approval.',
+        {
+          id: 'approve',
+          label: 'Approve Plan',
+          action: 'approve_plan',
+          style: 'primary'
         },
+        {
+          id: 'edit-schema',
+          label: 'Edit Schema',
+          action: 'edit_schema',
+          style: 'secondary'
+        }],
+
+        metadata: {
+          hint: 'You can still edit the schema after approval.'
+        }
       } as StoreHITLResponse,
       metadata: {
-        schemaName: 'products',
-      },
+        schemaName: 'products'
+      }
     };
   }
 
   return {
     type: 'text',
     contentType: 'text',
-    content: 'I can help you design database models. Try asking me to "design a model for products" or specify the entity you\'d like to model.',
+    content: 'I can help you design database models. Try asking me to "design a model for products" or specify the entity you\'d like to model.'
   };
 }
 
@@ -762,7 +762,7 @@ export function Canvas() {
   // Show suggestions when agent is selected
   useEffect(() => {
     // Check if there are messages for the current session (or no session history if session is new/null)
-    const hasMessages = messages.some(m => m.sessionId === currentSessionId);
+    const hasMessages = messages.some((m) => m.sessionId === currentSessionId);
     if (activeAgent && !hasMessages) {
       setSuggestionsShown(true);
     }
@@ -772,7 +772,7 @@ export function Canvas() {
     if (!chatInput.trim()) return;
 
     let sessionId = currentSessionId;
-    
+
     // Create session if it doesn't exist
     if (!sessionId && activeAgent) {
       try {
@@ -787,7 +787,7 @@ export function Canvas() {
           setCurrentSession(session.id);
           sessionId = session.id;
         } else {
-            throw new Error('failed');
+          throw new Error('failed');
         }
       } catch (err) {
         // fallback to local session
@@ -808,7 +808,7 @@ export function Canvas() {
     setChatInput('');
     clearAttachment();
     setSuggestionsShown(false);
-    
+
     // Stream agent response from a dummy backend
     setIsTyping(true);
 
@@ -837,31 +837,31 @@ export function Canvas() {
       const store = useAppStore.getState();
       const msg = store.messages.find((m) => m.id === id);
       const accumulated = msg?.content || '';
-      
+
       // Extract table and hitl from meta
       const { table, hitl } = meta || {};
-      
+
       // Build final message updates: keep accumulated text, add table/hitl metadata
       const updates: any = {
-        content: accumulated, // keep the streamed text
+        content: accumulated // keep the streamed text
       };
-      
+
       if (table) {
         // Extract columns (as strings) and rows from table schema
         const columnNames = table.columns?.map((c: any) => c.name) || [];
         const rowData = table.rows?.map((r: any) => columnNames.map((name: string) => r[name] || '')) || [];
-        updates.metadata = { 
+        updates.metadata = {
           columns: columnNames,
           rows: rowData,
-          table, // keep full table schema in metadata too
+          table // keep full table schema in metadata too
         };
         updates.contentType = 'table'; // render as table
       }
-      
+
       if (hitl) {
         updates.hitl = hitl;
       }
-      
+
       updateMessage(id, updates);
       setIsTyping(false);
     };
@@ -939,7 +939,7 @@ export function Canvas() {
       content: responseContent,
       timestamp: new Date(),
       mode: chatMode,
-      contentType: 'text',
+      contentType: 'text'
     });
   };
 
@@ -949,116 +949,116 @@ export function Canvas() {
     <div className="flex-1 h-screen bg-background flex flex-col overflow-hidden">
       {/* Top bar - always visible */}
       <div className="flex items-center justify-end p-4 border-b border-border">
-        <div className="text-sm font-medium text-foreground">Priya Sharma</div>
+        <div className="text-sm font-medium text-foreground">KV00001
+        </div>
       </div>
 
       {/* Main content area */}
-      {!activeAgent ? (
-        <div className="flex-1 citi-gradient-bg citi-grid-pattern flex items-center justify-center relative overflow-hidden">
+      {!activeAgent ? <div className="flex-1 citi-gradient-bg citi-grid-pattern flex items-center justify-center relative overflow-hidden">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="text-center px-8"
-          >
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="text-center px-8">
+
             <div className="w-20 h-20 rounded-2xl bg-citi-light-blue flex items-center justify-center mb-6 border border-citi-blue/30">
               <Activity size={40} className="text-citi-blue" />
             </div>
-            <h1 className="text-3xl font-bold text-foreground mb-2">Welcome to CitiForge</h1>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Welcome to Maphub</h1>
             <p className="text-muted-foreground mb-8 max-w-md">
               Select an AI agent from the sidebar to get started with powerful data modeling, analysis, and automation tools.
             </p>
             <button
-              onClick={() => setPresetModalOpen(true)}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors shadow-lg shadow-primary/30"
-            >
+            onClick={() => setPresetModalOpen(true)}
+            className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium text-sm hover:bg-primary/90 transition-colors shadow-lg shadow-primary/30">
+
               <Plus size={16} />
               Explore Presets
             </button>
           </motion.div>
-        </div>
-      ) : (
-        <>
+        </div> :
+
+      <>
           {/* Messages Container */}
           <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-background">
         <AnimatePresence>
-          {(!messages.some(m => m.sessionId === currentSessionId)) && suggestionsShown && activeAgent === 'data-modeler' && (
+          {!messages.some((m) => m.sessionId === currentSessionId) && suggestionsShown && activeAgent === 'data-modeler' &&
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="space-y-4"
-            >
+              className="space-y-4">
+
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Data Modeler</h2>
                 <p className="text-sm text-gray-600">Design and generate data models for financial products</p>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-6">
-                {suggestedQueries['data-modeler'].map((query) => (
-                  <SuggestedQueryCard
-                    key={query.title}
-                    card={query}
-                    onSelect={handleQuerySelect}
-                  />
-                ))}
+                {suggestedQueries['data-modeler'].map((query) =>
+                <SuggestedQueryCard
+                  key={query.title}
+                  card={query}
+                  onSelect={handleQuerySelect} />
+
+                )}
               </div>
             </motion.div>
-          )}
+            }
 
-          {messages.filter((m) => m.sessionId === currentSessionId).map((msg, idx) => (
+          {messages.filter((m) => m.sessionId === currentSessionId).map((msg, idx) =>
             <motion.div
               key={msg.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+
               <div className={`flex flex-col gap-3 ${msg.role === 'user' ? 'max-w-[70%]' : 'max-w-[90%]'}`}>
-                {msg.role === 'user' ? (
-                  <div className="flex flex-col gap-2">
+                {msg.role === 'user' ?
+                <div className="flex flex-col gap-2">
                     <div className="px-4 py-3 rounded-lg bg-blue-500 text-white rounded-br-none text-sm">
                       {msg.content}
                     </div>
                     <span className="text-xs text-gray-500 px-2 self-end">
                       {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
+                  </div> :
+
+                <div className="flex flex-col gap-2">
                     <div className="space-y-3 bg-gray-50 border border-gray-200 rounded-lg rounded-bl-none p-4">
                       <ContentRenderer
-                        contentType={msg.contentType}
-                        content={msg.content}
-                        metadata={msg.metadata}
-                      />
+                      contentType={msg.contentType}
+                      content={msg.content}
+                      metadata={msg.metadata} />
+
                       
-                      {msg.hitl && (
-                        <GenericHITLForm
-                          hitl={msg.hitl}
-                          messageId={msg.id}
-                          onAction={handleHITLAction}
-                        />
-                      )}
+                      {msg.hitl &&
+                    <GenericHITLForm
+                      hitl={msg.hitl}
+                      messageId={msg.id}
+                      onAction={handleHITLAction} />
+
+                    }
                     </div>
                     <span className="text-xs text-gray-500 px-2">
                       {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                )}
+                }
               </div>
             </motion.div>
-          ))}
+            )}
 
-          {isTyping && (
+          {isTyping &&
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex justify-start"
-            >
+              className="flex justify-start">
+
               <div className="bg-white border border-gray-200 px-4 py-3 rounded-lg rounded-bl-none">
                 <TypingIndicator />
               </div>
             </motion.div>
-          )}
+            }
         </AnimatePresence>
         <div ref={messagesEndRef} />
       </div>
@@ -1069,102 +1069,102 @@ export function Canvas() {
           <div className="flex-1 relative">
             {/* Attachment display */}
             <AnimatePresence>
-              {attachmentFile && (
+              {attachmentFile &&
                 <motion.div
                   initial={{ height: 0, opacity: 0 }}
                   animate={{ height: 'auto', opacity: 1 }}
                   exit={{ height: 0, opacity: 0 }}
-                  className="flex items-center gap-2 px-3 py-2 mb-2 bg-primary/5 border border-primary/20 rounded-lg text-xs"
-                >
+                  className="flex items-center gap-2 px-3 py-2 mb-2 bg-primary/5 border border-primary/20 rounded-lg text-xs">
+
                   <FileText size={14} className="text-primary shrink-0" />
                   <span className="font-medium text-foreground truncate flex-1">{attachmentFile.name}</span>
                   <button
                     onClick={clearAttachment}
                     className="p-1 hover:bg-primary/10 rounded transition-colors text-muted-foreground hover:text-foreground shrink-0"
-                    title="Remove"
-                  >
+                    title="Remove">
+
                     <X size={12} />
                   </button>
                 </motion.div>
-              )}
+                }
             </AnimatePresence>
 
             {/* Input field */}
             <div className="relative flex items-center gap-2 bg-muted/50 border border-border rounded-xl hover:border-border/80 transition-colors focus-within:border-primary/50 focus-within:bg-card focus-within:ring-1 focus-within:ring-ring">
               {/* Attachment button */}
               <button
-                className={`p-2.5 transition-colors flex items-center justify-center shrink-0 ${
-                  attachmentFile ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
-                }`}
-                onClick={() => document.getElementById('attach-file-canvas')?.click()}
-                title="Attach file"
-                aria-label="Attach file"
-              >
+                  className={`p-2.5 transition-colors flex items-center justify-center shrink-0 ${
+                  attachmentFile ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`
+                  }
+                  onClick={() => document.getElementById('attach-file-canvas')?.click()}
+                  title="Attach file"
+                  aria-label="Attach file">
+
                 <Paperclip size={16} />
               </button>
 
               <input
-                id="attach-file-canvas"
-                type="file"
-                style={{ display: 'none' }}
-                onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
-              />
+                  id="attach-file-canvas"
+                  type="file"
+                  style={{ display: 'none' }}
+                  onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)} />
+
 
               {/* Text input */}
               {(() => {
-                const sessionMsgs = messages.filter((m) => m.sessionId === currentSessionId);
-                const activeHitlMsg = sessionMsgs.find((m) => m.hitl);
-                const isLocked = !!activeHitlMsg && !(activeHitlMsg && hitlUnlockedFor.includes(activeHitlMsg.id));
-                return (
-                  <input
-                    ref={chatInputRef}
-                    value={chatInput}
-                    onChange={(e) => {
-                      setChatInput(e.target.value);
-                      // Show mentions when @ is freshly typed
-                      const val = e.target.value;
-                      const lastAt = val.lastIndexOf('@');
-                      if (lastAt !== -1 && lastAt === val.length - 1) {
-                        setShowMentions(true);
-                        setMentionIndex(null);
-                      } else if (!val.includes('@')) {
-                        setShowMentions(false);
-                      }
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        if (!isLocked) handleSend();
-                        return;
-                      }
-                      if (e.key === 'ArrowDown' && showMentions) {
-                        e.preventDefault();
-                        setMentionIndex(0);
-                        setTimeout(() => mentionRefs.current[0]?.focus(), 0);
-                        return;
-                      }
-                    }}
-                    placeholder={isLocked ? 'Action required: approve or modify the plan to continue' : 'Ask your agent anything...'}
-                    disabled={isLocked}
-                    className="flex-1 h-11 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
-                  />
-                );
-              })()}
+                  const sessionMsgs = messages.filter((m) => m.sessionId === currentSessionId);
+                  const activeHitlMsg = sessionMsgs.find((m) => m.hitl);
+                  const isLocked = !!activeHitlMsg && !(activeHitlMsg && hitlUnlockedFor.includes(activeHitlMsg.id));
+                  return (
+                    <input
+                      ref={chatInputRef}
+                      value={chatInput}
+                      onChange={(e) => {
+                        setChatInput(e.target.value);
+                        // Show mentions when @ is freshly typed
+                        const val = e.target.value;
+                        const lastAt = val.lastIndexOf('@');
+                        if (lastAt !== -1 && lastAt === val.length - 1) {
+                          setShowMentions(true);
+                          setMentionIndex(null);
+                        } else if (!val.includes('@')) {
+                          setShowMentions(false);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (!isLocked) handleSend();
+                          return;
+                        }
+                        if (e.key === 'ArrowDown' && showMentions) {
+                          e.preventDefault();
+                          setMentionIndex(0);
+                          setTimeout(() => mentionRefs.current[0]?.focus(), 0);
+                          return;
+                        }
+                      }}
+                      placeholder={isLocked ? 'Action required: approve or modify the plan to continue' : 'Ask your agent anything...'}
+                      disabled={isLocked}
+                      className="flex-1 h-11 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50" />);
+
+
+                })()}
 
               {/* Send button */}
               <button
-                onClick={handleSend}
-                disabled={!chatInput.trim()}
-                className="p-2.5 text-muted-foreground hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center shrink-0"
-                title="Send"
-                aria-label="Send message"
-              >
+                  onClick={handleSend}
+                  disabled={!chatInput.trim()}
+                  className="p-2.5 text-muted-foreground hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center shrink-0"
+                  title="Send"
+                  aria-label="Send message">
+
                 <Send size={16} />
               </button>
 
               {/* @-mention popup */}
               <AnimatePresence>
-                {showMentions && (
+                {showMentions &&
                   <motion.div
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -1176,7 +1176,7 @@ export function Canvas() {
                       if (e.key === 'ArrowDown') {
                         e.preventDefault();
                         setMentionIndex((prev) => {
-                          const next = prev === null ? 0 : Math.min((atSuggestions.length - 1), prev + 1);
+                          const next = prev === null ? 0 : Math.min(atSuggestions.length - 1, prev + 1);
                           setTimeout(() => mentionRefs.current[next]?.focus(), 0);
                           return next;
                         });
@@ -1189,48 +1189,48 @@ export function Canvas() {
                           return next;
                         });
                       }
-                    }}
-                  >
+                    }}>
+
                     <div className="bg-card border border-border rounded-lg shadow-lg p-1.5 space-y-0.5">
                       <p className="text-[10px] font-medium text-muted-foreground px-2 py-1 uppercase tracking-wider">Mention a field</p>
-                      {atSuggestions.map((s, idx) => (
-                        <button
-                          key={s}
-                          ref={(el) => (mentionRefs.current[idx] = el)}
-                          type="button"
-                          role="option"
-                          aria-selected={mentionIndex === idx}
-                          tabIndex={0}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                              const i = chatInput.lastIndexOf('@');
-                              const newVal = chatInput.slice(0, i) + s + ' ';
-                              setChatInput(newVal);
-                              setMentionIndex(null);
-                              setShowMentions(false);
-                              setTimeout(() => chatInputRef.current?.focus(), 0);
-                            }
-                          }}
-                          onClick={() => {
+                      {atSuggestions.map((s, idx) =>
+                      <button
+                        key={s}
+                        ref={(el) => mentionRefs.current[idx] = el}
+                        type="button"
+                        role="option"
+                        aria-selected={mentionIndex === idx}
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
                             const i = chatInput.lastIndexOf('@');
                             const newVal = chatInput.slice(0, i) + s + ' ';
                             setChatInput(newVal);
                             setMentionIndex(null);
                             setShowMentions(false);
                             setTimeout(() => chatInputRef.current?.focus(), 0);
-                          }}
-                          className={`w-full text-left px-3 py-2 text-xs rounded-md font-mono transition-colors focus:outline-none ${
-                            mentionIndex === idx 
-                              ? 'bg-primary/10 text-primary' 
-                              : 'text-foreground hover:bg-muted'
-                          }`}
-                        >
+                          }
+                        }}
+                        onClick={() => {
+                          const i = chatInput.lastIndexOf('@');
+                          const newVal = chatInput.slice(0, i) + s + ' ';
+                          setChatInput(newVal);
+                          setMentionIndex(null);
+                          setShowMentions(false);
+                          setTimeout(() => chatInputRef.current?.focus(), 0);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs rounded-md font-mono transition-colors focus:outline-none ${
+                        mentionIndex === idx ?
+                        'bg-primary/10 text-primary' :
+                        'text-foreground hover:bg-muted'}`
+                        }>
+
                           {s}
                         </button>
-                      ))}
+                      )}
                     </div>
                   </motion.div>
-                )}
+                  }
               </AnimatePresence>
             </div>
           </div>
@@ -1238,31 +1238,31 @@ export function Canvas() {
           {/* Mode selector - pill toggle */}
           <div className="flex items-center gap-0.5 bg-muted/60 border border-border/50 rounded-xl p-1 shrink-0">
             {modes.map((mode) => {
-              const Icon = mode.icon;
-              const isActive = chatMode === mode.id;
-              return (
-                <button
-                  key={mode.id}
-                  onClick={() => setChatMode(mode.id)}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
-                    isActive
-                      ? 'bg-card text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                  title={mode.label}
-                >
+                const Icon = mode.icon;
+                const isActive = chatMode === mode.id;
+                return (
+                  <button
+                    key={mode.id}
+                    onClick={() => setChatMode(mode.id)}
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                    isActive ?
+                    'bg-card text-foreground shadow-sm' :
+                    'text-muted-foreground hover:text-foreground'}`
+                    }
+                    title={mode.label}>
+
                   <Icon size={14} />
                   <span className="hidden lg:inline">{mode.label}</span>
-                </button>
-              );
-            })}
+                </button>);
+
+              })}
           </div>
         </div>
         
         <p className="text-[10px] text-muted-foreground text-center">Press Enter to send, Shift+Enter for new line</p>
       </div>
         </>
-      )}
-    </div>
-  );
+      }
+    </div>);
+
 }
