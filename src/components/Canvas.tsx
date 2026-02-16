@@ -1063,175 +1063,186 @@ export function Canvas() {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-border bg-card p-6 space-y-4">
-        {/* Mode selector moved into the chat input bar for compact layout */}
-
-        <div className="flex items-start gap-3">
-          {/* Mode selector (left of chat input) */}
-          <div className="flex-shrink-0">
-            <label htmlFor="chat-mode-select" className="sr-only">Mode</label>
-            <select
-              id="chat-mode-select"
-              aria-label="Chat mode"
-              value={chatMode}
-              onChange={(e) => setChatMode(e.target.value as ChatMode)}
-              className="h-10 px-3 py-1 text-sm rounded-lg border border-border bg-card text-foreground shadow-sm focus:outline-none focus:ring-2 focus:ring-ring appearance-none cursor-pointer"
-            >
-              {modes.map((m) => (
-                <option key={m.id} value={m.id}>{m.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex-1">
+      <div className="border-t border-border bg-card px-6 py-4 space-y-3">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 relative">
             {/* Attachment display */}
             <AnimatePresence>
-          {attachmentFile && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-lg text-xs"
-            >
-              <FileText size={14} className="text-blue-600 shrink-0" />
-              <span className="font-medium text-gray-900 truncate flex-1">{attachmentFile.name}</span>
-              <button
-                onClick={clearAttachment}
-                className="p-1 hover:bg-blue-100 rounded transition-colors text-gray-600 hover:text-gray-900 shrink-0"
-                title="Remove"
-              >
-                <X size={12} />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Input field */}
-        <div className="relative z-20 flex items-center gap-2 bg-muted/50 border border-border rounded-lg hover:border-border/80 transition-colors focus-within:border-primary/50 focus-within:bg-card focus-within:ring-1 focus-within:ring-ring">
-          {/* Mode select is rendered to the left of the input (only one instance above) */}
-          {/* Attachment button */}
-          <button
-            className={`p-2 transition-colors flex items-center justify-center shrink-0 ${
-              attachmentFile ? 'text-blue-600' : 'text-gray-600 hover:text-gray-900'
-            }`}
-            onClick={() => document.getElementById('attach-file-canvas')?.click()}
-            title="Attach file"
-            aria-label="Attach file"
-          >
-            <Paperclip size={16} />
-          </button>
-
-          <input
-            id="attach-file-canvas"
-            type="file"
-            style={{ display: 'none' }}
-            onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
-          />
-
-          {/* Text input */}
-          {/** Disable input while a HITL prompt is active unless the user clicked Modify for that message */}
-          {(() => {
-            const sessionMsgs = messages.filter((m) => m.sessionId === currentSessionId);
-            const activeHitlMsg = sessionMsgs.find((m) => m.hitl);
-            const isLocked = !!activeHitlMsg && !(activeHitlMsg && hitlUnlockedFor.includes(activeHitlMsg.id));
-            return (
-              <input
-                ref={chatInputRef}
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => {
-                  // Enter to send
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    if (!isLocked) handleSend();
-                    return;
-                  }
-
-                  if (e.key === 'ArrowDown' && chatInput.includes('@')) {
-                    e.preventDefault();
-                    setMentionIndex(0);
-                    setTimeout(() => mentionRefs.current[0]?.focus(), 0);
-                    return;
-                  }
-                }}
-                placeholder={isLocked ? 'Action required: approve or modify the plan to continue' : 'Ask your agent anything...'}
-                disabled={isLocked}
-                className="flex-1 h-10 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none px-2 disabled:opacity-50"
-              />
-            );
-          })()}
-
-          {/* Send button */}
-          <button
-            onClick={handleSend}
-            disabled={!chatInput.trim()}
-            className="p-2 text-muted-foreground hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center shrink-0"
-            title="Send"
-            aria-label="Send message"
-          >
-            <Send size={16} />
-          </button>
-
-          {/* @-mention helpers (keyboard accessible) */}
-          {chatInput.includes('@') && (
-            <div
-              role="listbox"
-              aria-label="Mentions"
-              className="absolute left-1/2 transform -translate-x-1/2 bottom-full mb-2 z-40 w-[min(380px,80%)] max-w-md"
-              onKeyDown={(e) => {
-                if (e.key === 'ArrowDown') {
-                  e.preventDefault();
-                  setMentionIndex((prev) => {
-                    const next = prev === null ? 0 : Math.min((atSuggestions.length - 1), prev + 1);
-                    setTimeout(() => mentionRefs.current[next]?.focus(), 0);
-                    return next;
-                  });
-                }
-                if (e.key === 'ArrowUp') {
-                  e.preventDefault();
-                  setMentionIndex((prev) => {
-                    const next = prev === null ? atSuggestions.length - 1 : Math.max(0, prev - 1);
-                    setTimeout(() => mentionRefs.current[next]?.focus(), 0);
-                    return next;
-                  });
-                }
-              }}
-            >
-              <div className="bg-white border border-gray-200 rounded shadow-sm p-2">
-                {atSuggestions.map((s, idx) => (
+              {attachmentFile && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="flex items-center gap-2 px-3 py-2 mb-2 bg-primary/5 border border-primary/20 rounded-lg text-xs"
+                >
+                  <FileText size={14} className="text-primary shrink-0" />
+                  <span className="font-medium text-foreground truncate flex-1">{attachmentFile.name}</span>
                   <button
-                    key={s}
-                    ref={(el) => (mentionRefs.current[idx] = el)}
-                    type="button"
-                    role="option"
-                    aria-selected={mentionIndex === idx}
-                    tabIndex={0}
+                    onClick={clearAttachment}
+                    className="p-1 hover:bg-primary/10 rounded transition-colors text-muted-foreground hover:text-foreground shrink-0"
+                    title="Remove"
+                  >
+                    <X size={12} />
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Input field */}
+            <div className="relative flex items-center gap-2 bg-muted/50 border border-border rounded-xl hover:border-border/80 transition-colors focus-within:border-primary/50 focus-within:bg-card focus-within:ring-1 focus-within:ring-ring">
+              {/* Attachment button */}
+              <button
+                className={`p-2.5 transition-colors flex items-center justify-center shrink-0 ${
+                  attachmentFile ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
+                }`}
+                onClick={() => document.getElementById('attach-file-canvas')?.click()}
+                title="Attach file"
+                aria-label="Attach file"
+              >
+                <Paperclip size={16} />
+              </button>
+
+              <input
+                id="attach-file-canvas"
+                type="file"
+                style={{ display: 'none' }}
+                onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+              />
+
+              {/* Text input */}
+              {(() => {
+                const sessionMsgs = messages.filter((m) => m.sessionId === currentSessionId);
+                const activeHitlMsg = sessionMsgs.find((m) => m.hitl);
+                const isLocked = !!activeHitlMsg && !(activeHitlMsg && hitlUnlockedFor.includes(activeHitlMsg.id));
+                return (
+                  <input
+                    ref={chatInputRef}
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        const i = chatInput.lastIndexOf('@');
-                        const newVal = chatInput.slice(0, i) + s + ' ';
-                        setChatInput(newVal);
-                        setMentionIndex(null);
-                        setTimeout(() => chatInputRef.current?.focus(), 0);
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        if (!isLocked) handleSend();
+                        return;
+                      }
+                      if (e.key === 'ArrowDown' && chatInput.includes('@')) {
+                        e.preventDefault();
+                        setMentionIndex(0);
+                        setTimeout(() => mentionRefs.current[0]?.focus(), 0);
+                        return;
                       }
                     }}
-                    onClick={() => {
-                      const i = chatInput.lastIndexOf('@');
-                      const newVal = chatInput.slice(0, i) + s + ' ';
-                      setChatInput(newVal);
-                      setMentionIndex(null);
-                      setTimeout(() => chatInputRef.current?.focus(), 0);
+                    placeholder={isLocked ? 'Action required: approve or modify the plan to continue' : 'Ask your agent anything...'}
+                    disabled={isLocked}
+                    className="flex-1 h-11 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none disabled:opacity-50"
+                  />
+                );
+              })()}
+
+              {/* Send button */}
+              <button
+                onClick={handleSend}
+                disabled={!chatInput.trim()}
+                className="p-2.5 text-muted-foreground hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center shrink-0"
+                title="Send"
+                aria-label="Send message"
+              >
+                <Send size={16} />
+              </button>
+
+              {/* @-mention popup */}
+              <AnimatePresence>
+                {chatInput.includes('@') && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                    role="listbox"
+                    aria-label="Mentions"
+                    className="absolute left-4 bottom-full mb-2 z-50 w-56"
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        setMentionIndex((prev) => {
+                          const next = prev === null ? 0 : Math.min((atSuggestions.length - 1), prev + 1);
+                          setTimeout(() => mentionRefs.current[next]?.focus(), 0);
+                          return next;
+                        });
+                      }
+                      if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        setMentionIndex((prev) => {
+                          const next = prev === null ? atSuggestions.length - 1 : Math.max(0, prev - 1);
+                          setTimeout(() => mentionRefs.current[next]?.focus(), 0);
+                          return next;
+                        });
+                      }
                     }}
-                    className={`w-full text-left px-2 py-1 text-xs rounded focus:bg-gray-100 focus:outline-none focus:ring-1 focus:ring-blue-300 ${mentionIndex === idx ? 'bg-gray-100' : 'hover:bg-gray-50'}`}
                   >
-                    {s}
-                  </button>
-                ))}
-              </div>
+                    <div className="bg-card border border-border rounded-lg shadow-lg p-1.5 space-y-0.5">
+                      <p className="text-[10px] font-medium text-muted-foreground px-2 py-1 uppercase tracking-wider">Mention a field</p>
+                      {atSuggestions.map((s, idx) => (
+                        <button
+                          key={s}
+                          ref={(el) => (mentionRefs.current[idx] = el)}
+                          type="button"
+                          role="option"
+                          aria-selected={mentionIndex === idx}
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              const i = chatInput.lastIndexOf('@');
+                              const newVal = chatInput.slice(0, i) + s + ' ';
+                              setChatInput(newVal);
+                              setMentionIndex(null);
+                              setTimeout(() => chatInputRef.current?.focus(), 0);
+                            }
+                          }}
+                          onClick={() => {
+                            const i = chatInput.lastIndexOf('@');
+                            const newVal = chatInput.slice(0, i) + s + ' ';
+                            setChatInput(newVal);
+                            setMentionIndex(null);
+                            setTimeout(() => chatInputRef.current?.focus(), 0);
+                          }}
+                          className={`w-full text-left px-3 py-2 text-xs rounded-md font-mono transition-colors focus:outline-none ${
+                            mentionIndex === idx 
+                              ? 'bg-primary/10 text-primary' 
+                              : 'text-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {s}
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-          )}
-        </div>
-        </div>
+          </div>
+
+          {/* Mode selector - pill toggle */}
+          <div className="flex items-center gap-0.5 bg-muted/60 border border-border/50 rounded-xl p-1 shrink-0">
+            {modes.map((mode) => {
+              const Icon = mode.icon;
+              const isActive = chatMode === mode.id;
+              return (
+                <button
+                  key={mode.id}
+                  onClick={() => setChatMode(mode.id)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all ${
+                    isActive
+                      ? 'bg-card text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  title={mode.label}
+                >
+                  <Icon size={14} />
+                  <span className="hidden lg:inline">{mode.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
         
         <p className="text-[10px] text-muted-foreground text-center">Press Enter to send, Shift+Enter for new line</p>
