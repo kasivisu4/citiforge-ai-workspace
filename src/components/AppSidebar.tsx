@@ -74,7 +74,7 @@ export function AppSidebar() {
       }})();return () => {mounted = false;};}, [addSession]);return <aside className="w-[320px] min-w-[320px] h-screen flex flex-col citi-sidebar-nav border-r border-[hsl(var(--sidebar-border))]">
       {/* Logo */}
       <div className="px-6 py-6 border-b border-[hsl(var(--sidebar-border))]">
-        <div className="flex items-center gap-2">MH<div className="w-8 h-8 rounded-lg bg-citi-blue flex items-center justify-center">M<span className="text-primary-foreground font-bold text-sm">
+        <div className="flex items-center gap-2"><div className="w-8 h-8 rounded-lg bg-citi-blue flex items-center justify-center">M<span className="text-primary-foreground font-bold text-sm">
           </span>
           </div>
           <div>

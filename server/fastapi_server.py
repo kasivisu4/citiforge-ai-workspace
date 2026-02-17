@@ -92,27 +92,76 @@ async def options_clear_sessions():
     return JSONResponse(status_code=200, content={})
 
 
-# SSE stream for chat + table streaming. Streams JSON events with named event types.
-@app.get("/stream")
-async def stream(request: Request, input: str = "", id: str = ""):
-    # Simulate an LLM producing a plan, then emitting a structured table schema as JSON rows
+# POST stream for chat + table streaming. Streams NDJSON chunks with {type, content}.
+@app.post("/stream")
+async def stream(request: Request):
+    content_type = request.headers.get("content-type", "")
+    input_text = ""
+    message_id = ""
+
+    if "application/json" in content_type:
+        payload = await request.json()
+        input_text = payload.get("input", "")
+        message_id = payload.get("id", "")
+    elif "multipart/form-data" in content_type:
+        form = await request.form()
+        input_text = form.get("input", "") or ""
+        message_id = form.get("id", "") or ""
+        # Files can be attached in multipart uploads; consume to avoid warnings.
+        _ = form.getlist("files") if hasattr(form, "getlist") else []
+    else:
+        input_text = request.query_params.get("input", "")
+        message_id = request.query_params.get("id", "")
+
+    # Simulate an LLM producing a plan, then streaming table rows as objects
     async def event_stream():
-        # initial text chunks
+        # Send step metadata first to indicate total steps
+        yield json.dumps({"type": "step-metadata", "total": 3}) + "\n"
+
+        # Step 1: Plan overview - yield step chunk to indicate execution starting
+        yield json.dumps({"type": "step", "content": "Plan overview", "step": 1}) + "\n"
+
         chunks = [
             "I will propose a table schema for your products. ",
             "First I will list columns and types. ",
-            "Then I will stream sample rows.",
+            "Then I will stream the table as rows.",
         ]
         for c in chunks:
             if await await_disconnect(request):
                 return
-            yield f"event: chunk\ndata: {c}\n\n"
-            await asyncio.sleep(0.2)
+            yield json.dumps({"type": "paragraph", "content": c}) + "\n"
+            await asyncio.sleep(2)
 
-        # Finalize a plan and emit a HITL prompt with options
-        plan_text = (
-            "Proposed schema: products (id, name, price, currency, available_since)"
-        )
+        # Step 2: Stream table rows - yield step chunk to indicate execution starting
+        yield json.dumps(
+            {"type": "step", "content": "Stream table rows", "step": 2}
+        ) + "\n"
+
+        table_rows = [
+            {
+                "id": "p1",
+                "name": "Product A",
+                "price": 9.99,
+                "currency": "USD",
+                "available_since": "2024-01-10T00:00:00Z",
+            },
+            {
+                "id": "p2",
+                "name": "Product B",
+                "price": 19.99,
+                "currency": "USD",
+                "available_since": "2024-02-15T00:00:00Z",
+            },
+        ]
+        for row in table_rows:
+            if await await_disconnect(request):
+                return
+            yield json.dumps({"type": "table-row", "content": row}) + "\n"
+            await asyncio.sleep(0.1)
+
+        # Step 3: Finalize - yield step chunk to indicate execution starting
+        yield json.dumps({"type": "step", "content": "Finalize", "step": 3}) + "\n"
+
         hitl = {
             "type": "hitl",
             "title": "Approve data model plan",
@@ -133,61 +182,8 @@ async def stream(request: Request, input: str = "", id: str = ""):
             ],
             "metadata": {"hint": "Approve to finalize, Modify to edit schema in chat."},
         }
-        # send done event with plan + hitl and structured schema metadata
-        table_schema = {
-            "tableName": "products",
-            "columns": [
-                {
-                    "name": "id",
-                    "type": "string",
-                    "nullable": False,
-                    "description": "Primary key",
-                },
-                {
-                    "name": "name",
-                    "type": "string",
-                    "nullable": False,
-                    "description": "Product name",
-                },
-                {
-                    "name": "price",
-                    "type": "decimal",
-                    "nullable": False,
-                    "description": "Retail price",
-                },
-                {
-                    "name": "currency",
-                    "type": "string",
-                    "nullable": False,
-                    "description": "Currency code",
-                },
-                {
-                    "name": "available_since",
-                    "type": "datetime",
-                    "nullable": True,
-                    "description": "Availability date",
-                },
-            ],
-            "rows": [
-                {
-                    "id": "p1",
-                    "name": "Product A",
-                    "price": 9.99,
-                    "currency": "USD",
-                    "available_since": "2024-01-10T00:00:00Z",
-                },
-                {
-                    "id": "p2",
-                    "name": "Product B",
-                    "price": 19.99,
-                    "currency": "USD",
-                    "available_since": "2024-02-15T00:00:00Z",
-                },
-            ],
-        }
 
-        payload = {"content": plan_text, "meta": {"table": table_schema, "hitl": hitl}}
-        yield f"event: done\ndata: {json.dumps(payload)}\n\n"
+        yield json.dumps({"type": "done", "content": "", "meta": {"hitl": hitl}}) + "\n"
 
     # Fast helper to check client disconnect in generator context
     async def await_disconnect(req: Request):
@@ -196,4 +192,4 @@ async def stream(request: Request, input: str = "", id: str = ""):
         except Exception:
             return True
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(event_stream(), media_type="application/x-ndjson")

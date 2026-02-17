@@ -52,8 +52,8 @@ const suggestedQueries = {
   'data-modeler': [
   {
     icon: Database,
-    title: 'Design Model for Products',
-    description: 'Create a new data model for your financial products with AI guidance',
+    title: 'Design a Model for [Product]',
+    description: 'Build a custom data model from scratch. AI guides you along the way.',
     color: 'bg-blue-500/10 border-blue-200/30'
   },
   {
@@ -64,14 +64,14 @@ const suggestedQueries = {
   },
   {
     icon: Box,
-    title: 'Generate from Sample Table',
-    description: 'Select from existing database tables to create your model',
+    title: 'Generate from Existing Table',
+    description: 'Select from existing database table to create your model',
     color: 'bg-amber-500/10 border-amber-200/30'
   },
   {
     icon: BarChart3,
     title: 'Explore Templates',
-    description: 'Browse pre-built models for common banking products',
+    description: 'Browse ready-to-use models for popular financial products',
     color: 'bg-emerald-500/10 border-emerald-200/30'
   }]
 
@@ -570,6 +570,49 @@ function TableRenderer({ content, metadata }: {content: string;metadata?: Record
 
 }
 
+function StepProgress({ current, total, title }: {current: number;total: number;title?: string;}) {
+  const safeTotal = Math.max(1, total);
+  const safeCurrent = Math.min(Math.max(1, current), safeTotal);
+  const pct = Math.round((safeCurrent / safeTotal) * 100);
+  const displayTitle = safeCurrent >= safeTotal ? 'Completed' : title;
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-wider text-gray-500">
+        <span>{displayTitle ? `Step ${safeCurrent}: ${displayTitle}` : 'Progress'}</span>
+        <span>{safeCurrent}/{safeTotal}</span>
+      </div>
+      <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
+        <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function MixedRenderer({ content, metadata }: {content: string;metadata?: Record<string, any>;}) {
+  const textStep = metadata?.stepMap?.text ?? 1;
+  const tableStep = metadata?.stepMap?.table ?? (textStep + 1);
+  const stepTotal = metadata?.stepTotal ?? Math.max(textStep, tableStep);
+  const stepCurrent = metadata?.stepCurrent ?? textStep;
+  const stepTitle = metadata?.stepTitle;
+
+  return (
+    <div className="space-y-4">
+      <StepProgress current={stepCurrent} total={stepTotal} title={stepTitle} />
+      {content.trim() &&
+      <div className="space-y-1">
+          <TextRenderer content={content} />
+        </div>
+      }
+      {metadata?.columns?.length && metadata?.rows?.length &&
+      <div className="space-y-1">
+          <TableRenderer content={content} metadata={metadata} />
+        </div>
+      }
+    </div>
+  );
+}
+
 function GenericHITLForm({ hitl, messageId, onAction }: {hitl: StoreHITLResponse;messageId?: string;onAction: (actionId: string, action: string, messageId?: string) => void;}) {
   return (
     <motion.div
@@ -628,21 +671,37 @@ function ContentRenderer({
 
 
 }: {contentType?: string;content: string;metadata?: Record<string, any>;}) {
+  const hasText = content.trim().length > 0;
+  const hasTable = !!metadata?.columns?.length && !!metadata?.rows?.length;
+  const stepTotal = metadata?.stepTotal ?? 0;
+  const stepCurrent = metadata?.stepCurrent ?? 1;
+  const stepTitle = metadata?.stepTitle;
+
+  const withProgress = (node: JSX.Element) => (
+    <div className="space-y-4">
+      {stepTotal ? <StepProgress current={stepCurrent} total={stepTotal} title={stepTitle} /> : null}
+      {node}
+    </div>
+  );
+
+  if (hasText && hasTable) {
+    return <MixedRenderer content={content} metadata={metadata} />;
+  }
   if (contentType === 'markdown') {
-    return <MarkdownRenderer content={content} />;
+    return withProgress(<MarkdownRenderer content={content} />);
   }
-  if (contentType === 'table') {
-    return <TableRenderer content={content} metadata={metadata} />;
+  if (contentType === 'table' || hasTable) {
+    return withProgress(<TableRenderer content={content} metadata={metadata} />);
   }
-  return <TextRenderer content={content} />;
+  return withProgress(<TextRenderer content={content} />);
 }
 
-// Simulate a streaming backend response. Streams descriptive text in chunks,
-// and appends markdown table content in one shot if present.
+// Simulate a streaming backend response. Streams text and table rows as structured chunks,
+// with each chunk containing { type, content }.
 function simulateStreamingResponse(
 userInput: string,
 messageId: string,
-sendChunk: (id: string, chunk: string) => void,
+sendChunk: (id: string, chunk: { type: string; content: string; step?: number; step_title?: string }) => void,
 finalize: (id: string, finalContent: string, meta?: any) => void)
 {
   const mock = generateMockHITLResponse(userInput as string);
@@ -657,21 +716,32 @@ finalize: (id: string, finalContent: string, meta?: any) => void)
     table = full.slice(tableIndex).trim();
   }
 
-  // Chunk intro into words
+  // Chunk intro into words as paragraph type
   const words = intro.split(/(\s+)/).filter(Boolean);
   let idx = 0;
+
+  sendChunk(messageId, { type: 'steps', content: { total: 3, current: 1 } });
 
   const interval = setInterval(() => {
     if (idx < words.length) {
       const next = words[idx++];
-      sendChunk(messageId, next);
+      sendChunk(messageId, { type: 'paragraph', content: next, step: 1, step_title: 'Plan overview' });
       return;
+    }
+
+    // Stream table rows if present
+    if (table) {
+      const lines = table.split('\n').filter(l => l.trim());
+      for (const line of lines) {
+        sendChunk(messageId, { type: 'table-row', content: line + '\n', step: 2, step_title: 'Stream table rows' });
+      }
     }
 
     clearInterval(interval);
 
-    // Append table at once (if any) and attach hitl/metadata
+    // Finalize with complete content
     const finalContent = intro + (table ? '\n\n' + table : '');
+    sendChunk(messageId, { type: 'done', content: '', step: 3, step_title: 'Finalize' });
     finalize(messageId, finalContent, { hitl: mock.hitl, metadata: mock.metadata, contentType: mock.contentType });
   }, 120);
 
@@ -824,12 +894,61 @@ export function Canvas() {
       sessionId: sessionId || undefined
     });
 
-    // sendChunk uses the store to append content incrementally
-    const sendChunk = (id: string, chunk: string) => {
+    // sendChunk uses the store to append content incrementally (handles { type, content })
+    const sendChunk = (id: string, chunk: { type: string; content: any; step?: number; step_title?: string; total?: number }) => {
       const store = useAppStore.getState();
       const msg = store.messages.find((m) => m.id === id);
       const current = msg?.content || '';
-      updateMessage(id, { content: current + chunk });
+      const nextMetadata = { ...(msg?.metadata || {}) } as Record<string, any>;
+
+      // Handle step metadata chunk: sets total number of steps
+      if (chunk.type === 'step-metadata' && chunk.total) {
+        nextMetadata.stepTotal = Number(chunk.total);
+        updateMessage(id, { metadata: nextMetadata });
+        return;
+      }
+
+      // Handle explicit step chunks: type='step' indicates step is now executing
+      if (chunk.type === 'step' && chunk.step) {
+        nextMetadata.stepCurrent = chunk.step;
+        nextMetadata.stepTitle = String(chunk.content ?? '');
+        updateMessage(id, { metadata: nextMetadata });
+        return;
+      }
+
+      if (chunk.type === 'steps' && chunk.content) {
+        const total = Number(chunk.content.total ?? 0);
+        const currentStep = Number(chunk.content.current ?? 1);
+        nextMetadata.stepTotal = Number.isFinite(total) ? total : 0;
+        nextMetadata.stepCurrent = Number.isFinite(currentStep) ? currentStep : 1;
+        updateMessage(id, { metadata: nextMetadata });
+        return;
+      }
+
+      if (chunk.step) {
+        const nextStepMap = { ...(nextMetadata.stepMap || {}) };
+        if (chunk.type === 'paragraph') nextStepMap.text = chunk.step;
+        if (chunk.type === 'table-row') nextStepMap.table = chunk.step;
+        nextMetadata.stepMap = nextStepMap;
+        nextMetadata.stepCurrent = chunk.step;
+      }
+
+      if (chunk.step_title) {
+        nextMetadata.stepTitle = chunk.step_title;
+      }
+
+      if (chunk.type === 'table-row' && chunk.content && typeof chunk.content === 'object') {
+        const row = chunk.content as Record<string, any>;
+        const existing = nextMetadata.rows || [];
+        const columns = nextMetadata.columns || Object.keys(row);
+        const newRow = columns.map((name: string) => row[name] ?? '');
+        nextMetadata.columns = columns;
+        nextMetadata.rows = [...existing, newRow];
+        updateMessage(id, { metadata: nextMetadata });
+        return;
+      }
+
+      updateMessage(id, { content: current + String(chunk.content ?? ''), metadata: nextMetadata });
     };
 
     const finalize = (id: string, finalContent: string, meta?: any) => {
@@ -843,7 +962,8 @@ export function Canvas() {
 
       // Build final message updates: keep accumulated text, add table/hitl metadata
       const updates: any = {
-        content: accumulated // keep the streamed text
+        content: accumulated, // keep the streamed text
+        metadata: { ...(msg?.metadata || {}) }
       };
 
       if (table) {
@@ -851,6 +971,7 @@ export function Canvas() {
         const columnNames = table.columns?.map((c: any) => c.name) || [];
         const rowData = table.rows?.map((r: any) => columnNames.map((name: string) => r[name] || '')) || [];
         updates.metadata = {
+          ...(updates.metadata || {}),
           columns: columnNames,
           rows: rowData,
           table // keep full table schema in metadata too
@@ -866,39 +987,62 @@ export function Canvas() {
       setIsTyping(false);
     };
 
-    // Try EventSource streaming first (frontend) -> server at /stream
+    // Try POST streaming first -> server at /stream
     const streamFromServer = (userInput: string, id: string) => {
       try {
-        if (typeof window === 'undefined' || !('EventSource' in window)) return null;
-        const params = new URLSearchParams({ input: userInput, id });
         const STREAM_BASE = 'http://localhost:4555';
-        const es = new EventSource(`${STREAM_BASE}/stream?${params.toString()}`);
+        const controller = new AbortController();
 
-        es.addEventListener('chunk', (e: MessageEvent) => {
-          try {
-            sendChunk(id, e.data);
-          } catch (err) {
-            console.error('chunk handler error', err);
-          }
-        });
+        fetch(`${STREAM_BASE}/stream`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ input: userInput, id }),
+          signal: controller.signal
+        })
+          .then(async (res) => {
+            if (!res.ok) throw new Error('Stream failed');
 
-        es.addEventListener('done', (e: MessageEvent) => {
-          try {
-            const payload = JSON.parse(e.data);
-            finalize(id, payload.content, payload.meta);
-          } catch (err) {
-            finalize(id, typeof e.data === 'string' ? e.data : String(e.data));
-          }
-          es.close();
-        });
+            const reader = res.body?.getReader();
+            if (!reader) throw new Error('No readable stream');
 
-        es.addEventListener('error', () => {
-          // on error, close and fallback to local simulator
-          es.close();
-          simulateStreamingResponse(userInput, id, sendChunk, finalize);
-        });
+            const decoder = new TextDecoder();
+            let buffer = '';
 
-        return () => es.close();
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+
+              buffer += decoder.decode(value, { stream: true });
+              const lines = buffer.split('\n');
+
+              // Keep the last incomplete line in buffer
+              buffer = lines.pop() || '';
+
+              for (const line of lines) {
+                if (line.trim()) {
+                  try {
+                    const chunk = JSON.parse(line);
+                    if (chunk.type === 'done') {
+                      sendChunk(id, chunk);
+                      finalize(id, chunk.content, chunk.meta);
+                    } else {
+                      sendChunk(id, chunk);
+                    }
+                  } catch (err) {
+                    console.error('Failed to parse chunk', err);
+                  }
+                }
+              }
+            }
+          })
+          .catch((err) => {
+            if (err.name !== 'AbortError') {
+              // Fallback to simulator
+              simulateStreamingResponse(userInput, id, sendChunk, finalize);
+            }
+          });
+
+        return () => controller.abort();
       } catch (err) {
         return null;
       }
@@ -990,7 +1134,7 @@ export function Canvas() {
 
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">Data Modeler</h2>
-                <p className="text-sm text-gray-600">Design and generate data models for financial products</p>
+                <p className="text-sm text-gray-600">Design and generate intelligent data models for financial products</p>
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-6">
