@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { Dashboard } from '@/components/Dashboard';
 import { FixedSizeList as List } from 'react-window';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, ChatMode, type HITLResponse as StoreHITLResponse } from '@/store/useAppStore';
@@ -720,7 +721,7 @@ finalize: (id: string, finalContent: string, meta?: any) => void)
   const words = intro.split(/(\s+)/).filter(Boolean);
   let idx = 0;
 
-  sendChunk(messageId, { type: 'steps', content: { total: 3, current: 1 } });
+  sendChunk(messageId, { type: 'steps', content: JSON.stringify({ total: 3, current: 1 }) });
 
   const interval = setInterval(() => {
     if (idx < words.length) {
@@ -1147,6 +1148,10 @@ export function Canvas() {
                 )}
               </div>
             </motion.div>
+            }
+
+          {!messages.some((m) => m.sessionId === currentSessionId) && activeAgent && activeAgent !== 'data-modeler' &&
+            <Dashboard />
             }
 
           {messages.filter((m) => m.sessionId === currentSessionId).map((msg, idx) =>
