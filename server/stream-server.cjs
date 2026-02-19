@@ -21,14 +21,15 @@ function generateMock(userInput) {
     const content = intro + '\n\n' + table;
 
     const hitl = {
-      type: 'hitl',
-      title: 'Approve Data Model Plan',
-      description: 'Does this schema match your requirements?',
-      options: [
-        { id: 'approve', label: 'Approve Plan', action: 'approve_plan', style: 'primary' },
-        { id: 'edit-schema', label: 'Edit Schema', action: 'edit_schema', style: 'secondary' }
+      type: 'form',
+      title: 'Review and Approve Data Model Plan',
+      message: 'Provide final details, then submit approval.',
+      fields: [
+        { name: 'approval_notes', label: 'Approval notes', type: 'textarea', required: false, default: '' },
+        { name: 'target_table', label: 'Target table name', type: 'text', required: true, default: 'products' },
+        { name: 'risk_reviewed', label: 'Risk review completed', type: 'boolean', required: false, default: false }
       ],
-      metadata: { hint: 'You can still edit the schema after approval.' }
+      metadata: { hint: 'Submit the form to continue, or modify in chat before submitting.' }
     };
 
     return { content, hitl, metadata: { schemaName: 'products' }, contentType: 'markdown' };
@@ -48,52 +49,84 @@ const server = http.createServer((req, res) => {
   }
 
   if (parsed.pathname === '/stream' || parsed.pathname === '/sse') {
-    const q = parsed.query || {};
-    const input = q.input || '';
+    const startSSEStream = (input) => {
+      // Set SSE headers
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+        'Access-Control-Allow-Origin': '*',
+      });
 
-    // Set SSE headers
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      Connection: 'keep-alive',
-      'Access-Control-Allow-Origin': '*',
-    });
-
-    const mock = generateMock(input);
-    const full = mock.content || '';
-    const tableIndex = full.indexOf('\n|');
-    let intro = full;
-    let table = '';
-    if (tableIndex !== -1) {
-      intro = full.slice(0, tableIndex).trim();
-      table = full.slice(tableIndex).trim();
-    }
-
-    const words = intro.split(/(\s+)/).filter(Boolean);
-    let idx = 0;
-
-    const interval = setInterval(() => {
-      if (idx < words.length) {
-        writeSSE(res, 'chunk', words[idx++]);
-        return;
+      const mock = generateMock(input);
+      const full = mock.content || '';
+      const tableIndex = full.indexOf('\n|');
+      let intro = full;
+      let table = '';
+      if (tableIndex !== -1) {
+        intro = full.slice(0, tableIndex).trim();
+        table = full.slice(tableIndex).trim();
       }
 
-      clearInterval(interval);
+      const words = intro.split(/(\s+)/).filter(Boolean);
+      let idx = 0;
 
-      // send final combined content
-      const finalContent = intro + (table ? '\n\n' + table : '');
-      writeSSE(res, 'done', JSON.stringify({ content: finalContent, meta: { hitl: mock.hitl, metadata: mock.metadata, contentType: mock.contentType } }));
-      // close after a brief delay
-      setTimeout(() => res.end(), 200);
-    }, 120);
+      const interval = setInterval(() => {
+        if (idx < words.length) {
+          writeSSE(res, 'chunk', words[idx++]);
+          return;
+        }
 
-    // heartbeat
-    const hb = setInterval(() => writeSSE(res, 'ping', 'keepalive'), 20000);
+        clearInterval(interval);
 
-    req.on('close', () => {
-      clearInterval(interval);
-      clearInterval(hb);
-    });
+        // send final combined content
+        const finalContent = intro + (table ? '\n\n' + table : '');
+        writeSSE(res, 'done', JSON.stringify({ content: finalContent, meta: { hitl: mock.hitl, metadata: mock.metadata, contentType: mock.contentType } }));
+        // close after a brief delay
+        setTimeout(() => res.end(), 200);
+      }, 120);
+
+      // heartbeat
+      const hb = setInterval(() => writeSSE(res, 'ping', 'keepalive'), 20000);
+
+      req.on('close', () => {
+        clearInterval(interval);
+        clearInterval(hb);
+      });
+    };
+
+    if (req.method === 'POST') {
+      let body = '';
+      req.on('data', (chunk) => body += chunk.toString());
+      req.on('end', () => {
+        let payload = {};
+        try {
+          payload = JSON.parse(body || '{}');
+        } catch (err) {
+          payload = {};
+        }
+
+        if (payload.hitlActionResult) {
+          res.writeHead(200, {
+            'Content-Type': 'application/x-ndjson',
+            'Cache-Control': 'no-cache',
+            Connection: 'keep-alive',
+            'Access-Control-Allow-Origin': '*',
+          });
+          console.log('[MOCK HITL] Received action result via /stream:', JSON.stringify(payload.hitlActionResult));
+          res.write(JSON.stringify({ type: 'done', content: 'HITL action result received.', meta: { hitlActionResult: payload.hitlActionResult } }) + '\n');
+          res.end();
+          return;
+        }
+
+        startSSEStream(payload.input || '');
+      });
+      return;
+    }
+
+    const q = parsed.query || {};
+    const input = q.input || '';
+    startSSEStream(input);
 
     return;
   }

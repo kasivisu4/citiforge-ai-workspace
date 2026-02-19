@@ -17,17 +17,28 @@ export interface TableSchema {
 export interface HITLOption {
   id: string;
   label: string;
-  action: string;
-  metadata?: Record<string, any>;
-  style?: 'primary' | 'secondary' | 'destructive';
+  description?: string;
+  style?: Record<string, unknown>;
+}
+
+export interface HITLFormField {
+  name: string;
+  label: string;
+  type: 'text' | 'number' | 'boolean' | 'select' | 'textarea';
+  required?: boolean;
+  options?: HITLOption[];
+  default?: unknown;
+  style?: Record<string, unknown>;
 }
 
 export interface HITLResponse {
-  type: 'hitl';
-  title?: string;
-  description?: string;
-  options: HITLOption[];
-  metadata?: Record<string, any>;
+  type: 'binary' | 'options' | 'form';
+  title: string;
+  message: string;
+  options?: HITLOption[];
+  fields?: HITLFormField[];
+  style?: Record<string, unknown>;
+  metadata?: unknown;
 }
 
 export interface ChatMessage {

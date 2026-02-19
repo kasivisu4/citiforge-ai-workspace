@@ -6,7 +6,7 @@ import json
 import time
 import uuid
 import asyncio
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Literal
 
 app = FastAPI()
 
@@ -34,6 +34,41 @@ class TableResponse(BaseModel):
     columns: List[Column]
     rows: List[Dict[str, Any]]
     meta: Dict[str, Any] | None = None
+
+
+class HITLOption(BaseModel):
+    id: str
+    label: str
+    description: Optional[str] = None
+    style: Optional[dict] = None
+
+
+class HITLFormField(BaseModel):
+    name: str
+    label: str
+    type: Literal["text", "number", "boolean", "select", "textarea"]
+    required: bool = False
+    options: Optional[List[HITLOption]] = None
+    default: Optional[Any] = None
+    style: Optional[dict] = None
+
+
+class HITLAction(BaseModel):
+    type: Literal["binary", "options", "form"]
+    title: str
+    message: str
+    options: Optional[List[HITLOption]] = None
+    fields: Optional[List[HITLFormField]] = None
+    style: Optional[dict] = None
+    metadata: Optional[Any] = None
+
+
+class HITLActionResult(BaseModel):
+    actionId: str
+    messageId: Optional[str] = None
+    sessionId: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
+    submittedAt: Optional[float] = None
 
 
 @app.get("/sessions")
@@ -98,11 +133,20 @@ async def stream(request: Request):
     content_type = request.headers.get("content-type", "")
     input_text = ""
     message_id = ""
+    hitl_action_result: Optional[HITLActionResult] = None
 
     if "application/json" in content_type:
         payload = await request.json()
         input_text = payload.get("input", "")
         message_id = payload.get("id", "")
+        raw_hitl_action_result = payload.get("hitlActionResult")
+        if raw_hitl_action_result:
+            if hasattr(HITLActionResult, "model_validate"):
+                hitl_action_result = HITLActionResult.model_validate(
+                    raw_hitl_action_result
+                )
+            else:
+                hitl_action_result = HITLActionResult.parse_obj(raw_hitl_action_result)
     elif "multipart/form-data" in content_type:
         form = await request.form()
         input_text = form.get("input", "") or ""
@@ -112,6 +156,27 @@ async def stream(request: Request):
     else:
         input_text = request.query_params.get("input", "")
         message_id = request.query_params.get("id", "")
+
+    if hitl_action_result is not None:
+        result_payload = (
+            hitl_action_result.model_dump()
+            if hasattr(hitl_action_result, "model_dump")
+            else hitl_action_result.dict()
+        )
+        print("[MOCK HITL] Received action result via /stream:", json.dumps(result_payload))
+
+        async def hitl_result_stream():
+            yield json.dumps(
+                {
+                    "type": "done",
+                    "content": "HITL action result received.",
+                    "meta": {"hitlActionResult": result_payload},
+                }
+            ) + "\n"
+
+        return StreamingResponse(
+            hitl_result_stream(), media_type="application/x-ndjson"
+        )
 
     # Simulate an LLM producing a plan, then streaming table rows as objects
     async def event_stream():
@@ -162,28 +227,44 @@ async def stream(request: Request):
         # Step 3: Finalize - yield step chunk to indicate execution starting
         yield json.dumps({"type": "step", "content": "Finalize", "step": 3}) + "\n"
 
-        hitl = {
-            "type": "hitl",
-            "title": "Approve data model plan",
-            "description": "Approve the proposed table schema or modify it before applying.",
-            "options": [
-                {
-                    "id": "approve_plan",
-                    "label": "Approve Plan",
-                    "action": "approve_plan",
-                    "style": "primary",
-                },
-                {
-                    "id": "modify",
-                    "label": "Modify",
-                    "action": "modify",
-                    "style": "secondary",
-                },
+        hitl = HITLAction(
+            type="form",
+            title="Review and approve data model plan",
+            message="Provide the final details, then submit the approval.",
+            fields=[
+                HITLFormField(
+                    name="approval_notes",
+                    label="Approval notes",
+                    type="textarea",
+                    required=False,
+                    default="",
+                ),
+                HITLFormField(
+                    name="target_table",
+                    label="Target table name",
+                    type="text",
+                    required=True,
+                    default="products",
+                ),
+                HITLFormField(
+                    name="risk_reviewed",
+                    label="Risk review completed",
+                    type="boolean",
+                    required=False,
+                    default=False,
+                ),
             ],
-            "metadata": {"hint": "Approve to finalize, Modify to edit schema in chat."},
-        }
+            style={"variant": "card"},
+            metadata={
+                "hint": "Submit the form to continue, or modify in chat before submitting."
+            },
+        )
 
-        yield json.dumps({"type": "done", "content": "", "meta": {"hitl": hitl}}) + "\n"
+        hitl_payload = hitl.model_dump() if hasattr(hitl, "model_dump") else hitl.dict()
+
+        yield json.dumps(
+            {"type": "done", "content": "", "meta": {"hitl": hitl_payload}}
+        ) + "\n"
 
     # Fast helper to check client disconnect in generator context
     async def await_disconnect(req: Request):

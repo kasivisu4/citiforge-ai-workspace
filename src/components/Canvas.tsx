@@ -21,27 +21,11 @@ interface TableSchema {
   }>;
 }
 
-interface HITLOption {
-  id: string;
-  label: string;
-  action: string;
-  metadata?: Record<string, any>;
-  style?: 'primary' | 'secondary' | 'destructive';
-}
-
-interface HITLResponse {
-  type: 'hitl';
-  title?: string;
-  description?: string;
-  options: HITLOption[];
-  metadata?: Record<string, any>;
-}
-
 interface AgentResponse {
   type: 'text' | 'table' | 'markdown' | 'hitl';
   contentType?: 'text' | 'markdown' | 'table' | 'code';
   content: string;
-  hitl?: HITLResponse;
+  hitl?: StoreHITLResponse;
   metadata?: Record<string, any>;
   category?: string;
   editable?: boolean;
@@ -613,7 +597,87 @@ function MixedRenderer({ content, metadata }: {content: string;metadata?: Record
   );
 }
 
-function GenericHITLForm({ hitl, messageId, onAction }: {hitl: StoreHITLResponse;messageId?: string;onAction: (actionId: string, action: string, messageId?: string) => void;}) {
+function GenericHITLForm({ hitl, messageId, onAction }: {hitl: StoreHITLResponse;messageId?: string;onAction: (actionId: string, messageId?: string, payload?: Record<string, unknown>) => void;}) {
+  const [formValues, setFormValues] = useState<Record<string, unknown>>(() => {
+    const initial: Record<string, unknown> = {};
+    (hitl.fields || []).forEach((field) => {
+      if (field.default !== undefined) {
+        initial[field.name] = field.default;
+      } else if (field.type === 'boolean') {
+        initial[field.name] = false;
+      } else {
+        initial[field.name] = '';
+      }
+    });
+    return initial;
+  });
+
+  const options = hitl.options || [];
+  const metadataHint =
+  hitl.metadata && typeof hitl.metadata === 'object' && 'hint' in hitl.metadata ?
+  String((hitl.metadata as { hint?: unknown }).hint ?? '') :
+  '';
+
+  const variantFor = (style?: Record<string, unknown>) => {
+    const variant = String(style?.variant || '').toLowerCase();
+    if (variant === 'primary') return 'primary';
+    if (variant === 'destructive' || variant === 'danger') return 'destructive';
+    return 'secondary';
+  };
+
+  const renderField = (field: NonNullable<StoreHITLResponse['fields']>[number]) => {
+    const value = formValues[field.name];
+
+    if (field.type === 'textarea') {
+      return (
+        <textarea
+          value={String(value ?? '')}
+          onChange={(e) => setFormValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
+          className="w-full mt-1 h-24 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm"
+          placeholder={field.label}
+        />
+      );
+    }
+
+    if (field.type === 'select') {
+      return (
+        <select
+          value={String(value ?? '')}
+          onChange={(e) => setFormValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
+          className="w-full mt-1 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        >
+          <option value="">Select...</option>
+          {(field.options || []).map((opt) => (
+            <option key={opt.id} value={opt.id}>{opt.label}</option>
+          ))}
+        </select>
+      );
+    }
+
+    if (field.type === 'boolean') {
+      return (
+        <label className="inline-flex items-center gap-2 mt-1 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={Boolean(value)}
+            onChange={(e) => setFormValues((prev) => ({ ...prev, [field.name]: e.target.checked }))}
+          />
+          {field.label}
+        </label>
+      );
+    }
+
+    return (
+      <input
+        type={field.type === 'number' ? 'number' : 'text'}
+        value={String(value ?? '')}
+        onChange={(e) => setFormValues((prev) => ({ ...prev, [field.name]: e.target.value }))}
+        className="w-full mt-1 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm"
+        placeholder={field.label}
+      />
+    );
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -623,24 +687,39 @@ function GenericHITLForm({ hitl, messageId, onAction }: {hitl: StoreHITLResponse
       {hitl.title &&
       <div>
           <h3 className="text-sm font-semibold text-gray-900">{hitl.title}</h3>
-          {hitl.description &&
-        <p className="text-xs text-gray-600 mt-1">{hitl.description}</p>
+          {hitl.message &&
+        <p className="text-xs text-gray-600 mt-1">{hitl.message}</p>
         }
         </div>
       }
 
+      {hitl.fields?.length ?
+      <div className="space-y-3 pt-2">
+          {hitl.fields.map((field) =>
+        <div key={field.name}>
+              <label className="text-xs font-medium text-gray-700">
+                {field.label}
+                {field.required ? <span className="text-red-600"> *</span> : null}
+              </label>
+              {renderField(field)}
+            </div>
+        )}
+        </div> :
+      null}
+
+      {options.length ?
       <div className="flex flex-wrap gap-2 pt-2">
-        {hitl.options.map((option) => {
-          const isPrimary = option.style === 'primary';
-          const isSecondary = option.style === 'secondary';
-          const isDestructive = option.style === 'destructive';
+          {options.map((option) => {
+          const variant = variantFor(option.style);
+          const isPrimary = variant === 'primary';
+          const isDestructive = variant === 'destructive';
 
           return (
             <motion.button
               key={option.id}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={() => onAction(option.id, option.action, messageId)}
+              onClick={() => onAction(option.id, messageId, formValues)}
               className={`px-4 py-2 rounded-lg font-medium text-sm transition-all flex items-center gap-2 ${
               isPrimary ?
               'bg-blue-500 text-white hover:bg-blue-600 shadow-sm' :
@@ -653,10 +732,20 @@ function GenericHITLForm({ hitl, messageId, onAction }: {hitl: StoreHITLResponse
             </motion.button>);
 
         })}
-      </div>
+        </div> :
+      hitl.type === 'form' ?
+      <div className="pt-2">
+          <button
+          onClick={() => onAction('submit_form', messageId, formValues)}
+          className="px-4 py-2 rounded-lg font-medium text-sm transition-all bg-blue-500 text-white hover:bg-blue-600 shadow-sm">
 
-      {hitl.metadata?.hint &&
-      <p className="text-xs text-gray-600 pt-2 border-t border-gray-200">{hitl.metadata.hint}</p>
+            Submit
+          </button>
+        </div> :
+      null}
+
+      {metadataHint &&
+      <p className="text-xs text-gray-600 pt-2 border-t border-gray-200">{metadataHint}</p>
       }
     </motion.div>);
 
@@ -701,7 +790,7 @@ function ContentRenderer({
 function simulateStreamingResponse(
 userInput: string,
 messageId: string,
-sendChunk: (id: string, chunk: { type: string; content: string; step?: number; step_title?: string }) => void,
+sendChunk: (id: string, chunk: { type: string; content: unknown; step?: number; step_title?: string }) => void,
 finalize: (id: string, finalContent: string, meta?: any) => void)
 {
   const mock = generateMockHITLResponse(userInput as string);
@@ -774,25 +863,34 @@ function generateMockHITLResponse(userInput: string): AgentResponse {
       contentType: 'markdown',
       content: 'I\'ve designed a **Products** table schema for your financial database. This table will store all product information including type, status, and risk management data. Review the schema below:\n\n' + tableContent,
       hitl: {
-        type: 'hitl',
-        title: 'Approve Data Model Plan',
-        description: 'Does this schema match your requirements?',
-        options: [
+        type: 'form',
+        title: 'Review and Approve Data Model Plan',
+        message: 'Provide final details, then submit approval.',
+        fields: [
         {
-          id: 'approve',
-          label: 'Approve Plan',
-          action: 'approve_plan',
-          style: 'primary'
+          name: 'approval_notes',
+          label: 'Approval notes',
+          type: 'textarea',
+          required: false,
+          default: ''
         },
         {
-          id: 'edit-schema',
-          label: 'Edit Schema',
-          action: 'edit_schema',
-          style: 'secondary'
+          name: 'target_table',
+          label: 'Target table name',
+          type: 'text',
+          required: true,
+          default: 'products'
+        },
+        {
+          name: 'risk_reviewed',
+          label: 'Risk review completed',
+          type: 'boolean',
+          required: false,
+          default: false
         }],
 
         metadata: {
-          hint: 'You can still edit the schema after approval.'
+          hint: 'Submit the form to continue, or modify in chat before submitting.'
         }
       } as StoreHITLResponse,
       metadata: {
@@ -1062,29 +1160,62 @@ export function Canvas() {
     setSuggestionsShown(false);
   };
 
-  const handleHITLAction = (optionId: string, action: string, messageId?: string) => {
+  const handleHITLAction = async (actionId: string, messageId?: string, payload?: Record<string, unknown>) => {
+    const STREAM_BASE = 'http://localhost:4555';
+
+    try {
+      const res = await fetch(`${STREAM_BASE}/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          hitlActionResult: {
+            actionId,
+            messageId,
+            sessionId: currentSessionId ?? undefined,
+            payload: payload || {},
+            submittedAt: Date.now() / 1000
+          }
+        })
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to submit HITL action result');
+      }
+
+      const body = await res.text();
+      const firstLine = body.split('\n').find((line) => line.trim());
+      let backendMessage = 'HITL action result submitted to backend.';
+      if (firstLine) {
+        const parsed = JSON.parse(firstLine);
+        if (parsed?.type === 'done' && parsed?.content) {
+          backendMessage = String(parsed.content);
+        }
+      }
+
+      addMessage({
+        id: crypto.randomUUID(),
+        role: 'agent',
+        content: backendMessage,
+        timestamp: new Date(),
+        mode: chatMode,
+        contentType: 'text'
+      });
+    } catch (error) {
+      addMessage({
+        id: crypto.randomUUID(),
+        role: 'agent',
+        content: 'Failed to submit HITL action result to backend.',
+        timestamp: new Date(),
+        mode: chatMode,
+        contentType: 'text'
+      });
+    }
+
     // If user chooses to modify, unlock chat input for this HITL message
-    if (action === 'modify' || action === 'edit_schema') {
+    if (actionId === 'modify' || actionId === 'edit_schema') {
       if (messageId) setHitlUnlockedFor((s) => Array.from(new Set([...s, messageId])));
       return;
     }
-
-    // Approve path: send confirmation message and keep input locked by default
-    let responseContent = '';
-    if (action === 'approve_plan') {
-      responseContent = 'Perfect! Your data model plan has been approved. We can now proceed with implementing the schema in your database. Would you like me to generate the SQL migration script or do you want to configure any additional settings?';
-    } else {
-      responseContent = `Action "${action}" processed. Ready for next steps!`;
-    }
-
-    addMessage({
-      id: crypto.randomUUID(),
-      role: 'agent',
-      content: responseContent,
-      timestamp: new Date(),
-      mode: chatMode,
-      contentType: 'text'
-    });
   };
 
   // Table editing removed: schema updates should come from backend flows
