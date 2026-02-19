@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type AgentType = 'data-modeler' | 'data-analysis' | 'documentation' | 'templates' | null;
+export type AgentType = 'data-modeler' | 'data-analysis' | 'documentation' | 'templates' | 'dashboard-generator' | null;
 export type ChatMode = 'creative' | 'deep-think' | 'sota';
 
 export interface TableSchema {

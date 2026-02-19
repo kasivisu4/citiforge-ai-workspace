@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Database, BarChart3, FileText, FolderOpen, LucideIcon } from 'lucide-react';
+import { Database, BarChart3, FileText, FolderOpen, LayoutGrid, LucideIcon } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAppStore, AgentType } from '@/store/useAppStore';
 
@@ -44,6 +44,14 @@ const agents: AgentDef[] = [
   icon: FolderOpen,
   glowClass: 'glow-amber',
   iconBg: 'bg-amber-500/10 text-amber-500'
+},
+{
+  id: 'dashboard-generator',
+  title: 'Dashboard Generator',
+  description: 'Drag-and-drop chart builder with AI-powered prompt updates',
+  icon: LayoutGrid,
+  glowClass: 'glow-purple',
+  iconBg: 'bg-purple-500/10 text-purple-500'
 }];
 
 
