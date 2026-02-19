@@ -71,6 +71,440 @@ class HITLActionResult(BaseModel):
     submittedAt: Optional[float] = None
 
 
+class DashboardQueryRequest(BaseModel):
+    source: str
+    widgetType: str
+    prompt: str = ""
+    filters: Optional[Dict[str, Any]] = None
+
+
+class DashboardOptionsRequest(BaseModel):
+    source: str
+    column: str
+    filters: Optional[Dict[str, Any]] = None
+
+
+DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
+    "global-trade": {
+        "label": "Global Trade Overview",
+        "schema": {
+            "imports_exports": ["All", "Imports", "Exports"],
+            "industries": [
+                "All",
+                "Automotive",
+                "Electronics",
+                "Pharma",
+                "Energy",
+            ],
+            "products": [
+                "All",
+                "Trade Finance",
+                "Supply Chain Finance",
+                "Commodity Credit",
+                "Cross-border Payments",
+            ],
+        },
+        "rows": [
+            {
+                "name": "Jan",
+                "imports_exports": "Imports",
+                "industries": "Electronics",
+                "products": "Trade Finance",
+                "region": "APAC",
+                "country": "India",
+                "value": 4100,
+                "prev": 3800,
+            },
+            {
+                "name": "Feb",
+                "imports_exports": "Exports",
+                "industries": "Electronics",
+                "products": "Cross-border Payments",
+                "region": "EMEA",
+                "country": "Germany",
+                "value": 4300,
+                "prev": 4020,
+            },
+            {
+                "name": "Mar",
+                "imports_exports": "Imports",
+                "industries": "Automotive",
+                "products": "Supply Chain Finance",
+                "region": "APAC",
+                "country": "Japan",
+                "value": 4550,
+                "prev": 4200,
+            },
+            {
+                "name": "Apr",
+                "imports_exports": "Exports",
+                "industries": "Pharma",
+                "products": "Trade Finance",
+                "region": "Americas",
+                "country": "USA",
+                "value": 4700,
+                "prev": 4400,
+            },
+            {
+                "name": "May",
+                "imports_exports": "Imports",
+                "industries": "Energy",
+                "products": "Commodity Credit",
+                "region": "EMEA",
+                "country": "UAE",
+                "value": 5200,
+                "prev": 4880,
+            },
+            {
+                "name": "Jun",
+                "imports_exports": "Exports",
+                "industries": "Automotive",
+                "products": "Supply Chain Finance",
+                "region": "Americas",
+                "country": "Mexico",
+                "value": 5450,
+                "prev": 5100,
+            },
+            {
+                "name": "Jul",
+                "imports_exports": "Imports",
+                "industries": "Pharma",
+                "products": "Cross-border Payments",
+                "region": "APAC",
+                "country": "Singapore",
+                "value": 5680,
+                "prev": 5300,
+            },
+        ],
+    },
+    "manufacturing-risk": {
+        "label": "Manufacturing Risk Lens",
+        "schema": {
+            "imports_exports": ["All", "Imports", "Exports"],
+            "industries": [
+                "All",
+                "Metals",
+                "Chemicals",
+                "Industrial Goods",
+                "Textiles",
+            ],
+            "products": [
+                "All",
+                "Letters of Credit",
+                "Insurance",
+                "Factoring",
+                "Receivables",
+            ],
+        },
+        "rows": [
+            {
+                "name": "Jan",
+                "imports_exports": "Imports",
+                "industries": "Metals",
+                "products": "Letters of Credit",
+                "region": "EMEA",
+                "country": "Turkey",
+                "value": 3600,
+                "prev": 3400,
+            },
+            {
+                "name": "Feb",
+                "imports_exports": "Exports",
+                "industries": "Chemicals",
+                "products": "Insurance",
+                "region": "APAC",
+                "country": "China",
+                "value": 3900,
+                "prev": 3650,
+            },
+            {
+                "name": "Mar",
+                "imports_exports": "Imports",
+                "industries": "Industrial Goods",
+                "products": "Factoring",
+                "region": "Americas",
+                "country": "Brazil",
+                "value": 4200,
+                "prev": 3850,
+            },
+            {
+                "name": "Apr",
+                "imports_exports": "Exports",
+                "industries": "Textiles",
+                "products": "Receivables",
+                "region": "APAC",
+                "country": "Vietnam",
+                "value": 4380,
+                "prev": 4100,
+            },
+            {
+                "name": "May",
+                "imports_exports": "Imports",
+                "industries": "Chemicals",
+                "products": "Insurance",
+                "region": "EMEA",
+                "country": "Poland",
+                "value": 4620,
+                "prev": 4300,
+            },
+            {
+                "name": "Jun",
+                "imports_exports": "Exports",
+                "industries": "Metals",
+                "products": "Letters of Credit",
+                "region": "Americas",
+                "country": "Canada",
+                "value": 4850,
+                "prev": 4500,
+            },
+            {
+                "name": "Jul",
+                "imports_exports": "Imports",
+                "industries": "Industrial Goods",
+                "products": "Factoring",
+                "region": "APAC",
+                "country": "Thailand",
+                "value": 5080,
+                "prev": 4720,
+            },
+        ],
+    },
+}
+
+
+def get_dashboard_source(source_id: str) -> Dict[str, Any]:
+    return (
+        DASHBOARD_DATA_SOURCES.get(source_id) or DASHBOARD_DATA_SOURCES["global-trade"]
+    )
+
+
+def infer_dashboard_schema(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+    columns: List[Dict[str, Any]] = []
+    if not rows:
+        return {"columns": columns}
+
+    column_names = list(rows[0].keys())
+    for name in column_names:
+        sample_value = None
+        for row in rows:
+            value = row.get(name)
+            if value is not None:
+                sample_value = value
+                break
+
+        value_type = "unknown"
+        if isinstance(sample_value, bool):
+            value_type = "boolean"
+        elif isinstance(sample_value, (int, float)):
+            value_type = "number"
+        elif isinstance(sample_value, str):
+            value_type = "string"
+
+        unique_values = []
+        if value_type in {"string", "boolean"}:
+            unique_values = sorted(
+                list(
+                    {
+                        str(row.get(name))
+                        for row in rows
+                        if row.get(name) is not None
+                        and str(row.get(name)).strip() != ""
+                    }
+                )
+            )
+
+        numeric_values: List[float] = []
+        if value_type == "number":
+            numeric_values = [
+                float(row.get(name))
+                for row in rows
+                if isinstance(row.get(name), (int, float))
+            ]
+
+        filterable = False
+        if value_type in {"string", "boolean"}:
+            filterable = len(unique_values) > 0
+        elif value_type == "number":
+            filterable = len(numeric_values) > 0
+
+        column_record: Dict[str, Any] = {
+            "name": name,
+            "type": value_type,
+            "filterable": filterable,
+        }
+        if filterable:
+            if value_type in {"string", "boolean"}:
+                column_record["options"] = ["All", *unique_values]
+            if value_type == "number" and numeric_values:
+                column_record["min"] = min(numeric_values)
+                column_record["max"] = max(numeric_values)
+
+        columns.append(column_record)
+
+    return {"columns": columns}
+
+
+def apply_dashboard_filters(
+    rows: List[Dict[str, Any]], filters: Dict[str, Any]
+) -> List[Dict[str, Any]]:
+    filtered = rows
+    for key, value in filters.items():
+        if value in (None, "", "All"):
+            continue
+
+        if isinstance(value, list) and len(value) == 2:
+            lower, upper = value
+            filtered = [
+                row
+                for row in filtered
+                if isinstance(row.get(key), (int, float))
+                and float(lower) <= float(row.get(key)) <= float(upper)
+            ]
+            continue
+
+        if isinstance(value, dict) and "min" in value and "max" in value:
+            lower = value.get("min")
+            upper = value.get("max")
+            filtered = [
+                row
+                for row in filtered
+                if isinstance(row.get(key), (int, float))
+                and float(lower) <= float(row.get(key)) <= float(upper)
+            ]
+            continue
+
+        filtered = [row for row in filtered if str(row.get(key)) == str(value)]
+
+    return filtered
+
+
+def get_dashboard_column_options(rows: List[Dict[str, Any]], column: str) -> List[str]:
+    values = sorted(
+        list(
+            {
+                str(row.get(column))
+                for row in rows
+                if row.get(column) is not None and str(row.get(column)).strip() != ""
+            }
+        )
+    )
+    return ["All", *values]
+
+
+def build_dashboard_response(
+    widget_type: str, rows: List[Dict[str, Any]], prompt: str
+) -> Any:
+    prompt_lower = (prompt or "").lower()
+    if widget_type == "filter-range":
+        if not rows:
+            return [0, 100]
+        values = [int(row.get("value", 0)) for row in rows]
+        return [min(values), max(values)]
+
+    if widget_type == "pie":
+        grouped: Dict[str, int] = {}
+        group_column = "industries"
+        if rows:
+            sample = rows[0]
+            string_columns = [
+                key
+                for key, value in sample.items()
+                if isinstance(value, str) and key not in {"name"}
+            ]
+            if string_columns:
+                group_column = string_columns[0]
+
+        for row in rows:
+            group_value = str(row.get(group_column) or "Unknown")
+            grouped[group_value] = grouped.get(group_value, 0) + int(
+                row.get("value", 0)
+            )
+        return [
+            {
+                "name": key,
+                "value": val,
+                "_filterKey": group_column,
+                "_filterValue": key,
+            }
+            for key, val in grouped.items()
+        ]
+
+    if widget_type == "kpi":
+        total_current = sum(int(row.get("value", 0)) for row in rows)
+        total_prev = sum(int(row.get("prev", 0)) for row in rows)
+        if total_prev <= 0:
+            change_pct = 0.0
+        else:
+            change_pct = ((total_current - total_prev) / total_prev) * 100
+        sign = "+" if change_pct >= 0 else ""
+        if "risk" in prompt_lower:
+            normalized = min(100, max(0, int(total_current / 120)))
+            return [
+                {
+                    "value": f"{normalized}/100",
+                    "change": f"{sign}{change_pct:.1f}%",
+                    "positive": change_pct >= 0,
+                }
+            ]
+        return [
+            {
+                "value": f"${total_current:,.0f}M",
+                "change": f"{sign}{change_pct:.1f}%",
+                "positive": change_pct >= 0,
+            }
+        ]
+
+    return [dict(row) for row in rows]
+
+
+@app.get("/dashboard/data-sources")
+async def list_dashboard_data_sources():
+    return {
+        "sources": [
+            {"id": source_id, "label": source["label"]}
+            for source_id, source in DASHBOARD_DATA_SOURCES.items()
+        ]
+    }
+
+
+@app.get("/dashboard/schema")
+async def get_dashboard_schema(source: Optional[str] = None):
+    selected_source = source or "global-trade"
+    source_record = get_dashboard_source(selected_source)
+    return {
+        "source": selected_source,
+        "schema": infer_dashboard_schema(source_record["rows"]),
+    }
+
+
+@app.post("/dashboard/query")
+async def query_dashboard_data(payload: DashboardQueryRequest):
+    source_record = get_dashboard_source(payload.source)
+    rows = apply_dashboard_filters(source_record["rows"], payload.filters or {})
+    result = build_dashboard_response(payload.widgetType, rows, payload.prompt)
+    return {
+        "source": payload.source,
+        "widgetType": payload.widgetType,
+        "data": result,
+    }
+
+
+@app.post("/dashboard/options")
+async def get_dashboard_options(payload: DashboardOptionsRequest):
+    source_record = get_dashboard_source(payload.source)
+    incoming_filters = payload.filters or {}
+    scoped_filters = {
+        key: value for key, value in incoming_filters.items() if key != payload.column
+    }
+    rows = apply_dashboard_filters(source_record["rows"], scoped_filters)
+    options = get_dashboard_column_options(rows, payload.column)
+    return {
+        "source": payload.source,
+        "column": payload.column,
+        "options": options,
+    }
+
+
 def build_suggested_queries(input_text: str) -> List[Dict[str, Any]]:
     text = (input_text or "").lower()
     if "migration" in text or "sql" in text:
@@ -374,35 +808,26 @@ async def stream(request: Request):
         ) + "\n"
 
         hitl = HITLAction(
-            type="form",
+            type="binary",
             title="Review and approve data model plan",
             message="Provide the final details, then submit the approval.",
-            fields=[
-                HITLFormField(
-                    name="approval_notes",
-                    label="Approval notes",
-                    type="textarea",
-                    required=False,
-                    default="",
+            options=[
+                HITLOption(
+                    id="approve_plan",
+                    label="Approve",
+                    description="Approve and continue.",
+                    style={"variant": "primary"},
                 ),
-                HITLFormField(
-                    name="target_table",
-                    label="Target table name",
-                    type="text",
-                    required=True,
-                    default="products",
-                ),
-                HITLFormField(
-                    name="risk_reviewed",
-                    label="Risk review completed",
-                    type="boolean",
-                    required=False,
-                    default=False,
+                HITLOption(
+                    id="edit_schema",
+                    label="Edit Schema",
+                    description="Make changes before approval.",
+                    style={"variant": "secondary"},
                 ),
             ],
             style={"variant": "card"},
             metadata={
-                "hint": "Submit the form to continue, or modify in chat before submitting."
+                "hint": "Choose Approve to continue, or Edit Schema to revise first."
             },
         )
 

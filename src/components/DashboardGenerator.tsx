@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -26,16 +26,17 @@ import {
 import {
   Plus, GripVertical, Trash2, Edit3, Check, X, BarChart3,
   TrendingUp, Filter, LayoutGrid, LayoutList, Sliders, Loader2,
-  PieChart as PieIcon, Activity, RefreshCw,
+  PieChart as PieIcon, Activity, Bot,
 } from 'lucide-react';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ChartType = 'bar' | 'area' | 'line' | 'pie' | 'filter-select' | 'filter-range' | 'kpi';
+type ChartType = 'bar' | 'area' | 'line' | 'pie' | 'heatmap' | 'filter-select' | 'filter-range' | 'kpi';
 
 interface DashboardWidget {
   id: string;
   type: ChartType;
+  sourceId: string;
   title: string;
   prompt: string;
   data: any[];
@@ -47,6 +48,70 @@ interface DashboardWidget {
 interface ActiveFilter {
   key: string;
   value: string | number | [number, number] | null;
+}
+
+interface DashboardSchemaColumn {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'unknown';
+  filterable: boolean;
+  options?: string[];
+  min?: number;
+  max?: number;
+}
+
+interface DashboardDataSchema {
+  columns: DashboardSchemaColumn[];
+}
+
+interface DashboardDataSource {
+  id: string;
+  label: string;
+}
+
+const DEFAULT_DATA_SCHEMA: DashboardDataSchema = {
+  columns: [
+    { name: 'imports_exports', type: 'string', filterable: true, options: ['All', 'Imports', 'Exports'] },
+    { name: 'industries', type: 'string', filterable: true, options: ['All', 'Automotive', 'Electronics', 'Pharma', 'Energy'] },
+    { name: 'products', type: 'string', filterable: true, options: ['All', 'Trade Finance', 'Supply Chain Finance', 'Commodity Credit'] },
+  ],
+};
+
+interface DashboardPromptBundle {
+  dataSource: {
+    kind: 'backend';
+    sourceId: string;
+    generatedAt: string;
+    activeFilters: ActiveFilter[];
+  };
+  components: Array<{
+    id: string;
+    type: ChartType;
+    sourceId: string;
+    title: string;
+    prompt: string;
+    span: 1 | 2 | 3;
+    filterKey?: string;
+  }>;
+}
+
+function bundleWidgetsForPrompt(widgets: DashboardWidget[], activeFilters: ActiveFilter[], sourceId: string): DashboardPromptBundle {
+  return {
+    dataSource: {
+      kind: 'backend',
+      sourceId,
+      generatedAt: new Date().toISOString(),
+      activeFilters,
+    },
+    components: widgets.map((widget) => ({
+      id: widget.id,
+      type: widget.type,
+      sourceId: widget.sourceId,
+      title: widget.title,
+      prompt: widget.prompt,
+      span: widget.span,
+      filterKey: widget.filterKey,
+    })),
+  };
 }
 
 // ─── Mock data generators ─────────────────────────────────────────────────────
@@ -88,8 +153,79 @@ function generateMockData(prompt: string, type: ChartType): any[] {
   }));
 }
 
-function generateFilterOptions(filterKey: string): string[] {
-  return ['All', 'Equities', 'Fixed Income', 'FX', 'Commodities', 'Alternatives'];
+function formatColumnLabel(columnName: string): string {
+  return columnName
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getSelectableColumns(schema: DashboardDataSchema): DashboardSchemaColumn[] {
+  return schema.columns.filter((column) => column.filterable && Array.isArray(column.options) && column.options.length > 0);
+}
+
+function getRangeColumns(schema: DashboardDataSchema): DashboardSchemaColumn[] {
+  return schema.columns.filter((column) => column.filterable && column.type === 'number');
+}
+
+function generateFilterOptions(filterKey: string, schema: DashboardDataSchema): string[] {
+  const targetColumn = schema.columns.find((column) => column.name === filterKey);
+  if (!targetColumn) return ['All'];
+  if (Array.isArray(targetColumn.options) && targetColumn.options.length > 0) return targetColumn.options;
+  return ['All'];
+}
+
+function resolveChartFilter(
+  row: Record<string, unknown>,
+  schema: DashboardDataSchema
+): { key: string; value: string | number } | null {
+  const explicitFilterKey = row._filterKey;
+  const explicitFilterValue = row._filterValue;
+  if (typeof explicitFilterKey === 'string' && (typeof explicitFilterValue === 'string' || typeof explicitFilterValue === 'number')) {
+    return { key: explicitFilterKey, value: explicitFilterValue };
+  }
+
+  const nameColumn = schema.columns.find((column) => column.name === 'name' && column.filterable);
+  if (nameColumn && row.name !== undefined && row.name !== null && String(row.name).length > 0) {
+    return { key: 'name', value: String(row.name) };
+  }
+
+  const candidate = schema.columns.find((column) =>
+    column.filterable &&
+    (column.type === 'string' || column.type === 'boolean') &&
+    column.name !== 'name' &&
+    row[column.name] !== undefined &&
+    row[column.name] !== null &&
+    String(row[column.name]).length > 0
+  );
+
+  if (candidate) {
+    return { key: candidate.name, value: String(row[candidate.name]) };
+  }
+
+  if (row.name !== undefined && row.name !== null) {
+    return { key: 'name', value: String(row.name) };
+  }
+
+  return null;
+}
+
+function extractChartRow(eventLike: unknown): Record<string, unknown> | null {
+  if (!eventLike || typeof eventLike !== 'object') return null;
+  const record = eventLike as Record<string, unknown>;
+
+  if (record.payload && typeof record.payload === 'object') {
+    return record.payload as Record<string, unknown>;
+  }
+
+  const activePayload = record.activePayload;
+  if (Array.isArray(activePayload) && activePayload.length > 0) {
+    const first = activePayload[0] as Record<string, unknown>;
+    if (first?.payload && typeof first.payload === 'object') {
+      return first.payload as Record<string, unknown>;
+    }
+  }
+
+  return record;
 }
 
 // ─── Widget type catalogue ────────────────────────────────────────────────────
@@ -99,6 +235,7 @@ const WIDGET_TYPES: { type: ChartType; label: string; icon: typeof BarChart3; de
   { type: 'area', label: 'Area Chart', icon: TrendingUp, description: 'Show trends over time' },
   { type: 'line', label: 'Line Chart', icon: Activity, description: 'Multi-series time series' },
   { type: 'pie', label: 'Pie Chart', icon: PieIcon, description: 'Part-to-whole distribution' },
+  { type: 'heatmap', label: 'Heatmap', icon: LayoutGrid, description: 'Color intensity across rows/metrics' },
   { type: 'kpi', label: 'KPI Card', icon: Sliders, description: 'Single metric highlight' },
   { type: 'filter-select', label: 'Filter (Select)', icon: Filter, description: 'Dropdown cross-filter' },
   { type: 'filter-range', label: 'Filter (Range)', icon: Sliders, description: 'Numeric range slider' },
@@ -109,9 +246,13 @@ const WIDGET_TYPES: { type: ChartType; label: string; icon: typeof BarChart3; de
 function ChartContent({
   widget,
   activeFilters,
+  dataSchema,
+  onApplyFilter,
 }: {
   widget: DashboardWidget;
   activeFilters: ActiveFilter[];
+  dataSchema: DashboardDataSchema;
+  onApplyFilter: (key: string, value: string | number) => void;
 }) {
   const filtered = widget.data.filter((row: any) => {
     for (const f of activeFilters) {
@@ -134,24 +275,38 @@ function ChartContent({
   }
 
   if (widget.type === 'bar') {
+    const handleChartClick = (evt: any) => {
+      const payload = extractChartRow(evt);
+      if (!payload || typeof payload !== 'object') return;
+      const filter = resolveChartFilter(payload as Record<string, unknown>, dataSchema);
+      if (filter) onApplyFilter(filter.key, filter.value);
+    };
+
     return (
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+        <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} onClick={handleChartClick}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
           <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
           <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 11 }} />
-          <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-          <Bar dataKey="prev" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} opacity={0.6} />
+          <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} onClick={handleChartClick} />
+          <Bar dataKey="prev" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} opacity={0.6} onClick={handleChartClick} />
         </BarChart>
       </ResponsiveContainer>
     );
   }
 
   if (widget.type === 'area') {
+    const handleChartClick = (evt: any) => {
+      const payload = extractChartRow(evt);
+      if (!payload || typeof payload !== 'object') return;
+      const filter = resolveChartFilter(payload as Record<string, unknown>, dataSchema);
+      if (filter) onApplyFilter(filter.key, filter.value);
+    };
+
     return (
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+        <AreaChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} onClick={handleChartClick}>
           <defs>
             <linearGradient id={`grad-${widget.id}`} x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
@@ -162,34 +317,48 @@ function ChartContent({
           <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
           <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
           <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 11 }} />
-          <Area type="monotone" dataKey="prev" stroke="hsl(var(--border))" fill="transparent" strokeDasharray="4 4" strokeWidth={1.5} />
-          <Area type="monotone" dataKey="value" stroke="hsl(var(--primary))" fill={`url(#grad-${widget.id})`} strokeWidth={2} />
+          <Area type="monotone" dataKey="prev" stroke="hsl(var(--border))" fill="transparent" strokeDasharray="4 4" strokeWidth={1.5} onClick={handleChartClick} />
+          <Area type="monotone" dataKey="value" stroke="hsl(var(--primary))" fill={`url(#grad-${widget.id})`} strokeWidth={2} onClick={handleChartClick} />
         </AreaChart>
       </ResponsiveContainer>
     );
   }
 
   if (widget.type === 'line') {
+    const handleChartClick = (evt: any) => {
+      const payload = extractChartRow(evt);
+      if (!payload || typeof payload !== 'object') return;
+      const filter = resolveChartFilter(payload as Record<string, unknown>, dataSchema);
+      if (filter) onApplyFilter(filter.key, filter.value);
+    };
+
     return (
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+        <LineChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} onClick={handleChartClick}>
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
           <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
           <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
           <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 11 }} />
           <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="prev" stroke="hsl(var(--secondary))" strokeWidth={1.5} dot={false} strokeDasharray="4 4" />
+          <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 2 }} onClick={handleChartClick} />
+          <Line type="monotone" dataKey="prev" stroke="hsl(var(--secondary))" strokeWidth={1.5} dot={{ r: 2 }} strokeDasharray="4 4" onClick={handleChartClick} />
         </LineChart>
       </ResponsiveContainer>
     );
   }
 
   if (widget.type === 'pie') {
+    const handlePieClick = (entry: any) => {
+      const row = extractChartRow(entry);
+      if (!row) return;
+      const filter = resolveChartFilter(row, dataSchema);
+      if (filter) onApplyFilter(filter.key, filter.value);
+    };
+
     return (
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
-          <Pie data={widget.data} cx="50%" cy="50%" innerRadius="40%" outerRadius="70%" paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false}>
+          <Pie data={widget.data} cx="50%" cy="50%" innerRadius="40%" outerRadius="70%" paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} onClick={handlePieClick}>
             {widget.data.map((_: any, i: number) => (
               <Cell key={i} fill={COLORS[i % COLORS.length]} />
             ))}
@@ -197,6 +366,71 @@ function ChartContent({
           <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 11 }} />
         </PieChart>
       </ResponsiveContainer>
+    );
+  }
+
+  if (widget.type === 'heatmap') {
+    const points = data.filter((row: any) => row && typeof row === 'object');
+    const metrics = [
+      { key: 'value', label: 'Value' },
+      { key: 'prev', label: 'Prev' },
+    ];
+
+    const values = points.flatMap((row: any) =>
+      metrics
+        .map((metric) => Number(row?.[metric.key]))
+        .filter((value) => Number.isFinite(value))
+    );
+
+    const min = values.length ? Math.min(...values) : 0;
+    const max = values.length ? Math.max(...values) : 1;
+    const range = max - min || 1;
+
+    const intensity = (raw: unknown) => {
+      const value = Number(raw);
+      if (!Number.isFinite(value)) return 0.08;
+      const normalized = (value - min) / range;
+      return 0.12 + normalized * 0.78;
+    };
+
+    return (
+      <div className="h-full overflow-auto">
+        <table className="w-full text-[10px] border-separate border-spacing-1">
+          <thead>
+            <tr>
+              <th className="text-left text-muted-foreground px-1 py-1 font-medium">Metric</th>
+              {points.map((row: any, index: number) => (
+                <th key={`${String(row?.name ?? 'col')}-${index}`} className="text-muted-foreground px-1 py-1 font-medium">{String(row?.name ?? `P${index + 1}`)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {metrics.map((metric) => (
+              <tr key={metric.key}>
+                <td className="text-muted-foreground px-1 py-1 font-medium">{metric.label}</td>
+                {points.map((row: any, index: number) => {
+                  const rawValue = row?.[metric.key];
+                  const alpha = intensity(rawValue);
+                  const filter = resolveChartFilter(row as Record<string, unknown>, dataSchema);
+                  return (
+                    <td key={`${metric.key}-${index}`}>
+                      <button
+                        onClick={() => {
+                          if (filter) onApplyFilter(filter.key, filter.value);
+                        }}
+                        className="w-full rounded px-1 py-2 border border-border text-foreground hover:border-primary/60 transition-colors"
+                        style={{ backgroundColor: `hsl(var(--primary) / ${alpha})` }}
+                      >
+                        {Number.isFinite(Number(rawValue)) ? Number(rawValue).toLocaleString() : '-'}
+                      </button>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     );
   }
 
@@ -208,52 +442,212 @@ function ChartContent({
 function FilterWidget({
   widget,
   onFilter,
+  onUpdateFilterKey,
   currentFilter,
+  dataSchema,
+  sourceId,
+  activeFilters,
 }: {
   widget: DashboardWidget;
   onFilter: (key: string, value: any) => void;
+  onUpdateFilterKey: (id: string, key: string) => void;
   currentFilter: ActiveFilter | undefined;
+  dataSchema: DashboardDataSchema;
+  sourceId: string;
+  activeFilters: ActiveFilter[];
 }) {
   const key = widget.filterKey || widget.id;
+  const [draftValue, setDraftValue] = useState(String(currentFilter?.value ?? 'All'));
+  const [optionSearch, setOptionSearch] = useState('');
+  const [remoteOptions, setRemoteOptions] = useState<string[]>([]);
+  const [rangeDraft, setRangeDraft] = useState<[number, number]>([0, 100]);
+  const fallbackOptions = generateFilterOptions(key, dataSchema);
+  const options = remoteOptions.length > 0 ? remoteOptions : fallbackOptions;
+  const filteredOptions = options.filter((opt) =>
+    opt.toLowerCase().includes(optionSearch.toLowerCase())
+  );
+  const rangeColumns = getRangeColumns(dataSchema);
+  const selectedColumnMeta = dataSchema.columns.find((column) => column.name === key);
+  const fallbackRangeMeta = rangeColumns[0];
+  const rangeMin = Number(selectedColumnMeta?.min ?? fallbackRangeMeta?.min ?? 0);
+  const rangeMax = Number(selectedColumnMeta?.max ?? fallbackRangeMeta?.max ?? 100);
+  const currentRange = (currentFilter?.value as [number, number]) ?? [rangeMin, rangeMax];
+
+  useEffect(() => {
+    setDraftValue(String(currentFilter?.value ?? 'All'));
+    setOptionSearch('');
+  }, [currentFilter?.value, key]);
+
+  useEffect(() => {
+    if (widget.type !== 'filter-select') return;
+
+    const filtersPayload = activeFilters.reduce<Record<string, string | number | [number, number] | null>>((acc, filter) => {
+      if (filter.key !== key) acc[filter.key] = filter.value;
+      return acc;
+    }, {});
+
+    fetch('http://localhost:4555/dashboard/options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source: sourceId,
+        column: key,
+        filters: filtersPayload,
+      }),
+    })
+      .then((res) => res.json())
+      .then((payload) => {
+        const options = Array.isArray(payload?.options) ? payload.options.map(String) : [];
+        setRemoteOptions(options);
+      })
+      .catch(() => {
+        setRemoteOptions([]);
+      });
+  }, [widget.type, sourceId, key, activeFilters]);
+
+  useEffect(() => {
+    if (widget.type !== 'filter-range') return;
+    setRangeDraft([currentRange[0], currentRange[1]]);
+  }, [widget.type, currentRange[0], currentRange[1], key, rangeMin, rangeMax]);
+
+  useEffect(() => {
+    if (widget.type !== 'filter-select') return;
+    if (!options.length) return;
+    if (!options.includes(draftValue)) {
+      setDraftValue(options[0]);
+    }
+  }, [widget.type, options, draftValue]);
 
   if (widget.type === 'filter-select') {
-    const options = generateFilterOptions(key);
+    const filterableColumns = getSelectableColumns(dataSchema);
+
+    const applyDraft = () => {
+      const normalized = draftValue.trim();
+      if (!normalized) return;
+      onFilter(key, normalized);
+    };
+
     return (
       <div className="flex flex-col gap-2 h-full justify-center">
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Filter by {key}</p>
-        <div className="flex flex-wrap gap-1.5">
-          {options.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => onFilter(key, opt)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                (currentFilter?.value ?? 'All') === opt
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-card text-muted-foreground border-border hover:border-primary hover:text-foreground'
-              }`}
-            >
-              {opt}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Filter by</p>
+          <select
+            value={key}
+            onChange={(e) => onUpdateFilterKey(widget.id, e.target.value)}
+            className="bg-card border border-border rounded-md text-xs px-2 py-1 text-foreground"
+          >
+            {filterableColumns.map((column) => (
+              <option key={column.name} value={column.name}>{formatColumnLabel(column.name)}</option>
+            ))}
+          </select>
         </div>
+        {options.length > 5 ? (
+          <div className="flex flex-col gap-2">
+            <input
+              value={optionSearch}
+              onChange={(e) => setOptionSearch(e.target.value)}
+              placeholder="Search options"
+              className="bg-card border border-border rounded-md px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+            />
+            <div className="flex items-center gap-2">
+              <select
+                value={draftValue}
+                onChange={(e) => {
+                  const nextValue = e.target.value;
+                  setDraftValue(nextValue);
+                  onFilter(key, nextValue);
+                }}
+                className="flex-1 bg-card border border-border rounded-md px-2 py-1 text-xs text-foreground"
+              >
+                {filteredOptions.map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+              <button
+                onClick={applyDraft}
+                className="px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {options.map((opt) => (
+              <button
+                key={opt}
+                onClick={() => onFilter(key, opt)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                  (currentFilter?.value ?? 'All') === opt
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'bg-card text-muted-foreground border-border hover:border-primary hover:text-foreground'
+                }`}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     );
   }
 
   if (widget.type === 'filter-range') {
-    const [min, max] = widget.data as [number, number];
-    const currentVal = (currentFilter?.value as [number, number]) ?? [min, max];
+    const applyRange = () => {
+      const boundedMin = Math.max(rangeMin, Math.min(rangeDraft[0], rangeMax));
+      const boundedMax = Math.max(boundedMin, Math.min(rangeDraft[1], rangeMax));
+      onFilter(key, [boundedMin, boundedMax]);
+    };
+
     return (
       <div className="flex flex-col gap-3 h-full justify-center">
-        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Range: {currentVal[0]} – {currentVal[1]}</p>
-        <input
-          type="range"
-          min={min}
-          max={max}
-          value={currentVal[1]}
-          onChange={(e) => onFilter(key, [currentVal[0], Number(e.target.value)])}
-          className="w-full accent-primary"
-        />
+        <div className="flex items-center gap-2">
+          <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Range column</p>
+          <select
+            value={key}
+            onChange={(e) => onUpdateFilterKey(widget.id, e.target.value)}
+            className="bg-card border border-border rounded-md text-xs px-2 py-1 text-foreground"
+          >
+            {rangeColumns.map((column) => (
+              <option key={column.name} value={column.name}>{formatColumnLabel(column.name)}</option>
+            ))}
+          </select>
+        </div>
+        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Range: {currentRange[0]} – {currentRange[1]}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <input
+            type="number"
+            min={rangeMin}
+            max={rangeMax}
+            value={rangeDraft[0]}
+            onChange={(e) => setRangeDraft((prev) => [Number(e.target.value), prev[1]])}
+            className="bg-card border border-border rounded-md px-2 py-1 text-xs text-foreground"
+            placeholder="Min"
+          />
+          <input
+            type="number"
+            min={rangeMin}
+            max={rangeMax}
+            value={rangeDraft[1]}
+            onChange={(e) => setRangeDraft((prev) => [prev[0], Number(e.target.value)])}
+            className="bg-card border border-border rounded-md px-2 py-1 text-xs text-foreground"
+            placeholder="Max"
+          />
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={applyRange}
+            className="px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground"
+          >
+            Apply
+          </button>
+          <button
+            onClick={() => onFilter(key, [rangeMin, rangeMax])}
+            className="px-2 py-1 text-xs rounded-md border border-border text-muted-foreground hover:text-foreground"
+          >
+            Reset
+          </button>
+        </div>
       </div>
     );
   }
@@ -266,14 +660,24 @@ function FilterWidget({
 function SortableWidget({
   widget,
   activeFilters,
+  dataSchema,
+  sourceId,
   onDelete,
+  onToggleSpan,
   onUpdatePrompt,
+  onUpdateTitle,
+  onUpdateFilterKey,
   onFilter,
 }: {
   widget: DashboardWidget;
   activeFilters: ActiveFilter[];
+  dataSchema: DashboardDataSchema;
+  sourceId: string;
   onDelete: (id: string) => void;
+  onToggleSpan: (id: string) => void;
   onUpdatePrompt: (id: string, prompt: string) => void;
+  onUpdateTitle: (id: string, title: string) => void;
+  onUpdateFilterKey: (id: string, key: string) => void;
   onFilter: (key: string, value: any) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
@@ -285,7 +689,10 @@ function SortableWidget({
   };
 
   const [editingPrompt, setEditingPrompt] = useState(false);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [draftTitle, setDraftTitle] = useState(widget.title);
   const [draftPrompt, setDraftPrompt] = useState(widget.prompt);
+  const titleRef = useRef<HTMLInputElement>(null);
   const promptRef = useRef<HTMLInputElement>(null);
   const isFilter = widget.type.startsWith('filter');
   const currentFilter = activeFilters.find((f) => f.key === (widget.filterKey || widget.id));
@@ -315,12 +722,22 @@ function SortableWidget({
 
         {/* Span toggle */}
         <button
-          onClick={() => {/* handled via onUpdatePrompt with span change via dedicated handler */}}
+          onClick={() => onToggleSpan(widget.id)}
           className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all"
           title="Toggle width"
         >
           {widget.span === 1 ? <LayoutList size={13} /> : <LayoutGrid size={13} />}
         </button>
+
+        {!isFilter && (
+          <button
+            onClick={() => { setEditingTitle(true); setTimeout(() => titleRef.current?.focus(), 50); }}
+            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary transition-all"
+            title="Edit title"
+          >
+            <Edit3 size={13} />
+          </button>
+        )}
 
         {/* Edit prompt */}
         {!isFilter && (
@@ -329,7 +746,7 @@ function SortableWidget({
             className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary transition-all"
             title="Update chart via prompt"
           >
-            <Edit3 size={13} />
+            <Bot size={13} />
           </button>
         )}
 
@@ -345,6 +762,38 @@ function SortableWidget({
 
       {/* Inline prompt editor */}
       <AnimatePresence>
+        {editingTitle && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden border-b border-border/40 bg-muted/30 px-4 py-2"
+          >
+            <div className="flex items-center gap-2">
+              <Edit3 size={12} className="text-muted-foreground shrink-0" />
+              <input
+                ref={titleRef}
+                value={draftTitle}
+                onChange={(e) => setDraftTitle(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { onUpdateTitle(widget.id, draftTitle); setEditingTitle(false); }
+                  if (e.key === 'Escape') setEditingTitle(false);
+                }}
+                placeholder="Widget title"
+                className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+              />
+              <button
+                onClick={() => { onUpdateTitle(widget.id, draftTitle); setEditingTitle(false); }}
+                className="text-primary hover:text-primary/80 shrink-0"
+              >
+                <Check size={13} />
+              </button>
+              <button onClick={() => setEditingTitle(false)} className="text-muted-foreground hover:text-foreground shrink-0">
+                <X size={13} />
+              </button>
+            </div>
+          </motion.div>
+        )}
         {editingPrompt && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -353,7 +802,7 @@ function SortableWidget({
             className="overflow-hidden border-b border-border/40 bg-muted/30 px-4 py-2"
           >
             <div className="flex items-center gap-2">
-              <RefreshCw size={12} className="text-muted-foreground shrink-0" />
+              <Bot size={12} className="text-muted-foreground shrink-0" />
               <input
                 ref={promptRef}
                 value={draftPrompt}
@@ -387,9 +836,17 @@ function SortableWidget({
             <span className="text-xs">Generating…</span>
           </div>
         ) : isFilter ? (
-          <FilterWidget widget={widget} onFilter={onFilter} currentFilter={currentFilter} />
+          <FilterWidget
+            widget={widget}
+            onFilter={onFilter}
+            onUpdateFilterKey={onUpdateFilterKey}
+            currentFilter={currentFilter}
+            dataSchema={dataSchema}
+            sourceId={sourceId}
+            activeFilters={activeFilters}
+          />
         ) : (
-          <ChartContent widget={widget} activeFilters={activeFilters} />
+          <ChartContent widget={widget} activeFilters={activeFilters} dataSchema={dataSchema} onApplyFilter={onFilter} />
         )}
       </div>
     </motion.div>
@@ -398,9 +855,34 @@ function SortableWidget({
 
 // ─── Add Widget Panel ─────────────────────────────────────────────────────────
 
-function AddWidgetPanel({ onAdd, onClose }: { onAdd: (type: ChartType, prompt: string) => void; onClose: () => void }) {
+function AddWidgetPanel({
+  onAdd,
+  onClose,
+  selectableColumns,
+  rangeColumns,
+}: {
+  onAdd: (type: ChartType, title: string, prompt: string) => void;
+  onClose: () => void;
+  selectableColumns: DashboardSchemaColumn[];
+  rangeColumns: DashboardSchemaColumn[];
+}) {
   const [selectedType, setSelectedType] = useState<ChartType>('bar');
+  const [title, setTitle] = useState('');
   const [prompt, setPrompt] = useState('');
+  const [selectedFilterColumn, setSelectedFilterColumn] = useState(selectableColumns[0]?.name ?? '');
+  const [selectedRangeColumn, setSelectedRangeColumn] = useState(rangeColumns[0]?.name ?? 'value');
+
+  useEffect(() => {
+    if (!selectedFilterColumn && selectableColumns[0]?.name) {
+      setSelectedFilterColumn(selectableColumns[0].name);
+    }
+  }, [selectableColumns, selectedFilterColumn]);
+
+  useEffect(() => {
+    if (!selectedRangeColumn && rangeColumns[0]?.name) {
+      setSelectedRangeColumn(rangeColumns[0].name);
+    }
+  }, [rangeColumns, selectedRangeColumn]);
 
   return (
     <motion.div
@@ -436,20 +918,73 @@ function AddWidgetPanel({ onAdd, onClose }: { onAdd: (type: ChartType, prompt: s
 
       {/* Prompt input */}
       {!selectedType.startsWith('filter') && (
-        <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2 mb-4">
-          <Sliders size={14} className="text-muted-foreground shrink-0" />
-          <input
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && prompt.trim() && onAdd(selectedType, prompt)}
-            placeholder={`Describe your ${selectedType} chart (e.g. "Portfolio returns by asset class")`}
-            className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-          />
+        <div className="space-y-2 mb-4">
+          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2">
+            <Edit3 size={14} className="text-muted-foreground shrink-0" />
+            <input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Component title (e.g. Portfolio Returns)"
+              className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+            />
+          </div>
+          <div className="flex items-center gap-2 bg-card border border-border rounded-lg px-3 py-2">
+            <Sliders size={14} className="text-muted-foreground shrink-0" />
+            <input
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && prompt.trim() && onAdd(selectedType, title, prompt)}
+              placeholder={`Prompt for ${selectedType} chart (e.g. "Show monthly returns by asset class")`}
+              className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+            />
+          </div>
+        </div>
+      )}
+
+      {selectedType === 'filter-select' && (
+        <div className="space-y-2 mb-4">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Filter column</p>
+          <select
+            value={selectedFilterColumn}
+            onChange={(e) => setSelectedFilterColumn(e.target.value)}
+            className="w-full bg-card border border-border rounded-lg text-xs px-3 py-2 text-foreground"
+          >
+            {selectableColumns.map((column) => (
+              <option key={column.name} value={column.name}>{formatColumnLabel(column.name)}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {selectedType === 'filter-range' && (
+        <div className="space-y-2 mb-4">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Range column</p>
+          <select
+            value={selectedRangeColumn}
+            onChange={(e) => setSelectedRangeColumn(e.target.value)}
+            className="w-full bg-card border border-border rounded-lg text-xs px-3 py-2 text-foreground"
+          >
+            {rangeColumns.map((column) => (
+              <option key={column.name} value={column.name}>{formatColumnLabel(column.name)}</option>
+            ))}
+          </select>
         </div>
       )}
 
       <button
-        onClick={() => onAdd(selectedType, prompt || selectedType)}
+        onClick={() => {
+          if (selectedType === 'filter-select') {
+            const nextColumn = selectedFilterColumn || selectableColumns[0]?.name || 'name';
+            onAdd(selectedType, `Filter: ${formatColumnLabel(nextColumn)}`, nextColumn);
+            return;
+          }
+          if (selectedType === 'filter-range') {
+            const nextColumn = selectedRangeColumn || rangeColumns[0]?.name || 'value';
+            onAdd(selectedType, `Range: ${formatColumnLabel(nextColumn)}`, nextColumn);
+            return;
+          }
+          onAdd(selectedType, title, prompt || title || selectedType);
+        }}
         className="w-full py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:opacity-90 transition-opacity"
       >
         Add to Dashboard
@@ -508,22 +1043,30 @@ function mkId() {
   return `w-${++widgetCounter}-${Math.random().toString(36).slice(2, 6)}`;
 }
 
-function createWidget(type: ChartType, prompt: string): DashboardWidget {
+function createWidget(type: ChartType, title: string, prompt: string, sourceId: string): DashboardWidget {
   const typeLabel = WIDGET_TYPES.find((t) => t.type === type)?.label ?? type;
+  const normalizedTitle = (title || '').trim();
+  const normalizedPrompt = (prompt || '').trim();
+  const fallbackTitle = normalizedPrompt.length > 40 ? normalizedPrompt.slice(0, 40) + '…' : normalizedPrompt || typeLabel;
   return {
     id: mkId(),
     type,
-    title: prompt.length > 40 ? prompt.slice(0, 40) + '…' : prompt || typeLabel,
-    prompt,
+    sourceId,
+    title: normalizedTitle || fallbackTitle,
+    prompt: normalizedPrompt || normalizedTitle || typeLabel,
     data: [],
     span: type === 'kpi' ? 1 : type.startsWith('filter') ? 1 : 2,
     loading: true,
-    filterKey: type.startsWith('filter') ? type.replace('filter-', '') : undefined,
+    filterKey: type.startsWith('filter') ? (normalizedPrompt || 'name') : undefined,
   };
 }
 
 export function DashboardGenerator() {
   const [widgets, setWidgets] = useState<DashboardWidget[]>([]);
+  const [dataSources, setDataSources] = useState<DashboardDataSource[]>([]);
+  const [sourceId, setSourceId] = useState('global-trade');
+  const [dataSchema, setDataSchema] = useState<DashboardDataSchema>(DEFAULT_DATA_SCHEMA);
+  const [schemaBySource, setSchemaBySource] = useState<Record<string, DashboardDataSchema>>({});
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
@@ -533,41 +1076,188 @@ export function DashboardGenerator() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // Simulate backend fetch for chart data
-  const fetchChartData = useCallback((widgetId: string, type: ChartType, prompt: string) => {
-    setTimeout(() => {
-      setWidgets((prev) =>
-        prev.map((w) =>
-          w.id === widgetId
-            ? { ...w, loading: false, data: generateMockData(prompt, type) }
-            : w
-        )
-      );
-    }, 800 + Math.random() * 600);
+  useEffect(() => {
+    fetch('http://localhost:4555/dashboard/data-sources')
+      .then((res) => res.json())
+      .then((payload) => {
+        const nextSources = Array.isArray(payload?.sources)
+          ? payload.sources
+              .filter((record: unknown) => Boolean(record && typeof record === 'object'))
+              .map((record: unknown) => {
+                const source = record as Record<string, unknown>;
+                return {
+                  id: String(source.id ?? ''),
+                  label: String(source.label ?? ''),
+                };
+              })
+              .filter((record: DashboardDataSource) => record.id.length > 0)
+          : [];
+        if (!nextSources.length) return;
+        setDataSources(nextSources);
+        setSourceId((current) => current || nextSources[0].id);
+      })
+      .catch(() => {});
   }, []);
 
-  const handleAddWidget = useCallback((type: ChartType, prompt: string) => {
-    const widget = createWidget(type, prompt);
+  useEffect(() => {
+    fetch(`http://localhost:4555/dashboard/schema?source=${encodeURIComponent(sourceId)}`)
+      .then((res) => res.json())
+      .then((payload) => {
+        const schema = payload?.schema as Partial<DashboardDataSchema> | undefined;
+        if (!schema) return;
+        const columns = Array.isArray(schema.columns)
+          ? schema.columns
+              .filter((column) => Boolean(column && typeof column === 'object'))
+              .map((column) => {
+                const next = column as Record<string, unknown>;
+                const columnType = String(next.type ?? 'unknown');
+                return {
+                  name: String(next.name ?? ''),
+                  type: (columnType === 'string' || columnType === 'number' || columnType === 'boolean' ? columnType : 'unknown') as DashboardSchemaColumn['type'],
+                  filterable: Boolean(next.filterable),
+                  options: Array.isArray(next.options) ? next.options.map(String) : undefined,
+                  min: typeof next.min === 'number' ? next.min : undefined,
+                  max: typeof next.max === 'number' ? next.max : undefined,
+                };
+              })
+              .filter((column) => column.name.length > 0)
+          : [];
+        const resolvedSchema = { columns: columns.length ? columns : DEFAULT_DATA_SCHEMA.columns };
+        setDataSchema(resolvedSchema);
+        setSchemaBySource((prev) => ({
+          ...prev,
+          [sourceId]: resolvedSchema,
+        }));
+      })
+      .catch(() => {
+        setDataSchema(DEFAULT_DATA_SCHEMA);
+        setSchemaBySource((prev) => ({
+          ...prev,
+          [sourceId]: DEFAULT_DATA_SCHEMA,
+        }));
+      });
+  }, [sourceId]);
+
+  const fetchChartData = useCallback(
+    async (widgetId: string, widgetSourceId: string, type: ChartType, prompt: string, filters: ActiveFilter[]) => {
+      const filtersPayload = filters.reduce<Record<string, string | number | [number, number] | null>>((acc, filter) => {
+        acc[filter.key] = filter.value;
+        return acc;
+      }, {});
+
+      try {
+        const res = await fetch('http://localhost:4555/dashboard/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            source: widgetSourceId,
+            widgetType: type,
+            prompt,
+            filters: filtersPayload,
+          }),
+        });
+        if (!res.ok) throw new Error('Query failed');
+        const payload = await res.json();
+        const nextData = Array.isArray(payload?.data) ? payload.data : [];
+        setWidgets((prev) =>
+          prev.map((w) =>
+            w.id === widgetId
+              ? { ...w, loading: false, data: nextData }
+              : w
+          )
+        );
+      } catch {
+        setWidgets((prev) =>
+          prev.map((w) =>
+            w.id === widgetId
+              ? { ...w, loading: false, data: generateMockData(prompt, type) }
+              : w
+          )
+        );
+      }
+    },
+    []
+  );
+
+  const handleAddWidget = useCallback((type: ChartType, title: string, prompt: string) => {
+    const widget = createWidget(type, title, prompt, sourceId);
     setWidgets((prev) => [...prev, widget]);
-    fetchChartData(widget.id, type, prompt);
+    if (type === 'filter-select') {
+      setWidgets((prev) => prev.map((w) => (w.id === widget.id ? { ...w, loading: false, data: [] } : w)));
+    } else {
+      fetchChartData(widget.id, widget.sourceId, type, widget.prompt, activeFilters);
+    }
     setShowAddPanel(false);
-  }, [fetchChartData]);
+  }, [fetchChartData, activeFilters, sourceId]);
 
   const handleDelete = useCallback((id: string) => {
     setWidgets((prev) => prev.filter((w) => w.id !== id));
   }, []);
 
   const handleUpdatePrompt = useCallback((id: string, prompt: string) => {
+    const nextPrompt = prompt.trim();
     setWidgets((prev) =>
       prev.map((w) =>
         w.id === id
-          ? { ...w, prompt, title: prompt.length > 40 ? prompt.slice(0, 40) + '…' : prompt, loading: true, data: [] }
+          ? { ...w, prompt: nextPrompt, loading: true, data: [] }
           : w
       )
     );
     const widget = widgets.find((w) => w.id === id);
-    if (widget) fetchChartData(id, widget.type, prompt);
-  }, [widgets, fetchChartData]);
+    if (widget && !widget.type.startsWith('filter')) {
+      fetchChartData(id, widget.sourceId, widget.type, nextPrompt || widget.prompt, activeFilters);
+    }
+  }, [widgets, fetchChartData, activeFilters]);
+
+  const handleUpdateTitle = useCallback((id: string, title: string) => {
+    const nextTitle = title.trim();
+    setWidgets((prev) =>
+      prev.map((w) =>
+        w.id === id
+          ? { ...w, title: nextTitle || w.title }
+          : w
+      )
+    );
+  }, []);
+
+  const handleToggleSpan = useCallback((id: string) => {
+    setWidgets((prev) =>
+      prev.map((w) => {
+        if (w.id !== id) return w;
+        const nextSpan = w.span === 1 ? 2 : w.span === 2 ? 3 : 1;
+        return { ...w, span: nextSpan };
+      })
+    );
+  }, []);
+
+  const handleUpdateFilterKey = useCallback((widgetId: string, nextFilterKey: string) => {
+    const widget = widgets.find((item) => item.id === widgetId);
+    const oldFilterKey = widget?.filterKey;
+    const widgetSchema = widget?.sourceId ? schemaBySource[widget.sourceId] : undefined;
+    const nextColumn = (widgetSchema ?? dataSchema).columns.find((column) => column.name === nextFilterKey);
+
+    setWidgets((prev) =>
+      prev.map((widget) =>
+        widget.id === widgetId
+          ? {
+              ...widget,
+              filterKey: nextFilterKey,
+              title: `Filter: ${formatColumnLabel(nextFilterKey)}`,
+              prompt: nextFilterKey,
+            }
+          : widget
+      )
+    );
+
+    setActiveFilters((prev) => {
+      const withoutOld = oldFilterKey ? prev.filter((item) => item.key !== oldFilterKey) : [...prev];
+      if (withoutOld.some((item) => item.key === nextFilterKey)) return withoutOld;
+      if (nextColumn?.type === 'number' && typeof nextColumn.min === 'number' && typeof nextColumn.max === 'number') {
+        return [...withoutOld, { key: nextFilterKey, value: [nextColumn.min, nextColumn.max] }];
+      }
+      return [...withoutOld, { key: nextFilterKey, value: 'All' }];
+    });
+  }, [widgets, dataSchema, schemaBySource]);
 
   const handleFilter = useCallback((key: string, value: any) => {
     setActiveFilters((prev) => {
@@ -597,13 +1287,25 @@ export function DashboardGenerator() {
 
   const handleAddRow = () => {
     // Add a full-width separator area hint — just adds a wide chart by default
-    handleAddWidget('area', 'Row overview – trend over time');
+    handleAddWidget('area', 'Row overview', 'Trend over time for key business metrics');
   };
 
   const handleAddCol = () => {
     // Add a narrow KPI
-    handleAddWidget('kpi', 'Key metric');
+    handleAddWidget('kpi', 'Key metric', 'Show the most important KPI value and delta');
   };
+
+  useEffect(() => {
+    widgets
+      .filter((widget) => !widget.type.startsWith('filter'))
+      .forEach((widget) => {
+        fetchChartData(widget.id, widget.sourceId, widget.type, widget.prompt, activeFilters);
+      });
+  }, [activeFilters]);
+
+  const dashboardBundle = bundleWidgetsForPrompt(widgets, activeFilters, sourceId);
+  const selectableColumns = getSelectableColumns(dataSchema);
+  const rangeColumns = getRangeColumns(dataSchema);
 
   const activeWidget = widgets.find((w) => w.id === activeId);
 
@@ -619,6 +1321,18 @@ export function DashboardGenerator() {
             <div>
               <h2 className="text-2xl font-bold text-foreground">Dashboard Generator</h2>
               <p className="text-sm text-muted-foreground">Drag, drop, and prompt your way to beautiful dashboards</p>
+            </div>
+            <div className="ml-auto">
+              <p className="text-[10px] text-muted-foreground mb-1 text-right">Default source for new components</p>
+              <select
+                value={sourceId}
+                onChange={(e) => { setSourceId(e.target.value); }}
+                className="bg-card border border-border text-xs text-foreground rounded-lg px-3 py-2"
+              >
+                {dataSources.map((source) => (
+                  <option key={source.id} value={source.id}>{source.label}</option>
+                ))}
+              </select>
             </div>
           </div>
           {activeFilters.filter((f) => f.value && f.value !== 'All').length > 0 && (
@@ -651,11 +1365,21 @@ export function DashboardGenerator() {
           onTogglePanel={() => setShowAddPanel((v) => !v)}
           showPanel={showAddPanel}
         />
+        {widgets.length > 0 && (
+          <div className="mb-4">
+            <button
+              onClick={() => navigator.clipboard.writeText(JSON.stringify(dashboardBundle, null, 2)).catch(() => {})}
+              className="px-3 py-1.5 text-xs rounded-lg bg-card border border-border text-foreground hover:border-primary/50 transition-all"
+            >
+              Bundle Prompts (Copy JSON)
+            </button>
+          </div>
+        )}
 
         {/* Add Widget Panel */}
         <AnimatePresence>
           {showAddPanel && (
-            <AddWidgetPanel onAdd={handleAddWidget} onClose={() => setShowAddPanel(false)} />
+            <AddWidgetPanel onAdd={handleAddWidget} onClose={() => setShowAddPanel(false)} selectableColumns={selectableColumns} rangeColumns={rangeColumns} />
           )}
         </AnimatePresence>
 
@@ -699,8 +1423,13 @@ export function DashboardGenerator() {
                       key={widget.id}
                       widget={widget}
                       activeFilters={activeFilters}
+                      dataSchema={schemaBySource[widget.sourceId] ?? dataSchema}
+                      sourceId={widget.sourceId}
                       onDelete={handleDelete}
+                      onToggleSpan={handleToggleSpan}
                       onUpdatePrompt={handleUpdatePrompt}
+                      onUpdateTitle={handleUpdateTitle}
+                      onUpdateFilterKey={handleUpdateFilterKey}
                       onFilter={handleFilter}
                     />
                   ))}
