@@ -116,9 +116,12 @@ const server = http.createServer((req, res) => {
       const words = intro.split(/(\s+)/).filter(Boolean);
       let idx = 0;
 
+      writeSSE(res, 'chunk', JSON.stringify({ render_type: 'start', total_steps: 3 }));
+      writeSSE(res, 'chunk', JSON.stringify({ render_type: 'step', message: 'Plan overview', step: 1 }));
+
       const interval = setInterval(() => {
         if (idx < words.length) {
-          writeSSE(res, 'chunk', words[idx++]);
+          writeSSE(res, 'chunk', JSON.stringify({ render_type: 'text', message: words[idx++], step: 1, step_name: 'Plan overview' }));
           return;
         }
 
@@ -126,7 +129,8 @@ const server = http.createServer((req, res) => {
 
         // send final combined content
         const finalContent = intro;
-        writeSSE(res, 'done', JSON.stringify({ content: finalContent, meta: { hitl: mock.hitl, metadata: mock.metadata, contentType: mock.contentType, suggestedQueries: buildSuggestedQueries(input) } }));
+        writeSSE(res, 'chunk', JSON.stringify({ render_type: 'step', message: 'Finalize', step: 3 }));
+        writeSSE(res, 'done', JSON.stringify({ render_type: 'done', message: finalContent, meta: { hitl: mock.hitl, metadata: mock.metadata, contentType: mock.contentType, suggestedQueries: buildSuggestedQueries(input) } }));
         // close after a brief delay
         setTimeout(() => res.end(), 200);
       }, 120);
@@ -246,18 +250,18 @@ const server = http.createServer((req, res) => {
             'Access-Control-Allow-Origin': '*',
           });
           console.log('[MOCK HITL] Received action result via /stream:', JSON.stringify(payload.hitlActionResult));
-          res.write(JSON.stringify({ type: 'done', content: 'HITL action result received.', meta: { hitlActionResult: payload.hitlActionResult, suggestedQueries } }) + '\n');
+          res.write(JSON.stringify({ render_type: 'done', message: 'HITL action result received.', meta: { hitlActionResult: payload.hitlActionResult, suggestedQueries } }) + '\n');
           res.end();
           return;
         }
 
-        startSSEStream(payload.input || '');
+        startSSEStream(payload.message || payload.input || '');
       });
       return;
     }
 
     const q = parsed.query || {};
-    const input = q.input || '';
+    const input = q.message || q.input || '';
     startSSEStream(input);
 
     return;

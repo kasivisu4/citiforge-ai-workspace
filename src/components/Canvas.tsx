@@ -865,52 +865,39 @@ function ContentRenderer({
   return withProgress(<TextRenderer content={content} />);
 }
 
-// Simulate a streaming backend response. Streams text and table rows as structured chunks,
-// with each chunk containing { type, content }.
+// Simulate a streaming backend response using render_type/message chunk schema.
 function simulateStreamingResponse(
 userInput: string,
 messageId: string,
-sendChunk: (id: string, chunk: { type: string; content: unknown; step?: number; step_title?: string }) => void,
+sendChunk: (id: string, chunk: { render_type?: string; type?: string; message?: unknown; content?: unknown; step?: number; step_name?: string; step_title?: string; total_steps?: number; total?: number }) => void,
 finalize: (id: string, finalContent: string, meta?: any) => void)
 {
   const mock = generateMockHITLResponse(userInput as string);
 
   const full = mock.content || '';
-  // If there is a markdown table, split it out so we stream the intro first.
-  const tableIndex = full.indexOf('\n|');
-  let intro = full;
-  let table = '';
-  if (tableIndex !== -1) {
-    intro = full.slice(0, tableIndex).trim();
-    table = full.slice(tableIndex).trim();
-  }
+  const intro = full.trim();
 
-  // Chunk intro into words as paragraph type
-  const words = intro.split(/(\s+)/).filter(Boolean);
+  const textChunks = intro.split(/(?<=[.!?])\s+/).filter(Boolean);
   let idx = 0;
 
-  sendChunk(messageId, { type: 'steps', content: JSON.stringify({ total: 3, current: 1 }) });
+  sendChunk(messageId, { render_type: 'start', total_steps: 3 });
+  sendChunk(messageId, { render_type: 'step', message: 'Plan overview', step: 1 });
 
   const interval = setInterval(() => {
-    if (idx < words.length) {
-      const next = words[idx++];
-      sendChunk(messageId, { type: 'paragraph', content: next, step: 1, step_title: 'Plan overview' });
+    if (idx < textChunks.length) {
+      const next = textChunks[idx++];
+      sendChunk(messageId, { render_type: 'text', message: next, step: 1, step_name: 'Plan overview' });
       return;
     }
 
-    // Stream table rows if present
-    if (table) {
-      const lines = table.split('\n').filter(l => l.trim());
-      for (const line of lines) {
-        sendChunk(messageId, { type: 'table-row', content: line + '\n', step: 2, step_title: 'Stream table rows' });
-      }
-    }
+    sendChunk(messageId, { render_type: 'step', message: 'Prepare table payload', step: 2 });
 
     clearInterval(interval);
 
     // Finalize with complete content
-    const finalContent = intro + (table ? '\n\n' + table : '');
-    sendChunk(messageId, { type: 'done', content: '', step: 3, step_title: 'Finalize' });
+    const finalContent = intro;
+    sendChunk(messageId, { render_type: 'step', message: 'Finalize', step: 3 });
+    sendChunk(messageId, { render_type: 'done', message: '' });
     finalize(messageId, finalContent, { hitl: mock.hitl, metadata: mock.metadata, contentType: mock.contentType });
   }, 120);
 
@@ -922,26 +909,15 @@ function generateMockHITLResponse(userInput: string): AgentResponse {
   const isModelRequest = lowerInput.includes('design') || lowerInput.includes('model') || lowerInput.includes('product');
 
   if (isModelRequest) {
-    // Return a markdown response with HITL options
-    const tableContent = `
-| Column | Type | Nullable | Description |
-|--------|------|----------|-------------|
-| productId | UUID | No | Unique identifier for the product |
-| productName | VARCHAR(255) | No | Human-readable name of the product |
-| productType | ENUM | No | Category: DEPOSIT, CREDIT, INVESTMENT, INSURANCE |
-| description | TEXT | Yes | Detailed product description |
-| launchDate | DATE | No | Date when product was launched |
-| status | ENUM | No | ACTIVE, DEPRECATED, BETA, RETIRED |
-| riskLevel | ENUM | Yes | LOW, MEDIUM, HIGH, VERY_HIGH |
-| minimumInvestment | DECIMAL(15,2) | Yes | Minimum investment amount required |
-| managerId | UUID | No | Reference to product manager |
-| createdAt | TIMESTAMP | No | Record creation timestamp |
-    `.trim();
+    const tableRows = [
+      { id: 'p1', name: 'Product A', price: 9.99, currency: 'USD', available_since: '2024-01-10T00:00:00Z' },
+      { id: 'p2', name: 'Product B', price: 19.99, currency: 'USD', available_since: '2024-02-15T00:00:00Z' }
+    ];
 
     return {
       type: 'hitl',
-      contentType: 'markdown',
-      content: 'I\'ve designed a **Products** table schema for your financial database. This table will store all product information including type, status, and risk management data. Review the schema below:\n\n' + tableContent,
+      contentType: 'text',
+      content: 'I\'ve designed a **Products** table schema for your financial database. This table will store all product information including type, status, and risk management data. Review the schema below:',
       hitl: {
         type: 'form',
         title: 'Review and Approve Data Model Plan',
@@ -974,7 +950,8 @@ function generateMockHITLResponse(userInput: string): AgentResponse {
         }
       } as StoreHITLResponse,
       metadata: {
-        schemaName: 'products'
+        schemaName: 'products',
+        tableDataString: JSON.stringify(tableRows)
       }
     };
   }
@@ -1073,51 +1050,58 @@ export function Canvas() {
       sessionId: sessionId || undefined
     });
 
-    // sendChunk uses the store to append content incrementally (handles { type, content })
-    const sendChunk = (id: string, chunk: { type: string; content: any; step?: number; step_title?: string; total?: number }) => {
+    // sendChunk uses the store to append content incrementally.
+    const sendChunk = (
+    id: string,
+    chunk: {
+      render_type?: string;
+      type?: string;
+      message?: unknown;
+      content?: unknown;
+      step?: number;
+      step_name?: string;
+      step_title?: string;
+      total_steps?: number;
+      total?: number;
+    }) => {
       const store = useAppStore.getState();
       const msg = store.messages.find((m) => m.id === id);
       const current = msg?.content || '';
       const nextMetadata = { ...(msg?.metadata || {}) } as Record<string, any>;
+      const renderType = String(chunk.render_type ?? chunk.type ?? '');
+      const chunkMessage = chunk.message ?? chunk.content;
+      const chunkStepName = chunk.step_name ?? chunk.step_title;
+      const chunkTotalSteps = chunk.total_steps ?? chunk.total;
 
       // Handle step metadata chunk: sets total number of steps
-      if (chunk.type === 'step-metadata' && chunk.total) {
-        nextMetadata.stepTotal = Number(chunk.total);
+      if (renderType === 'start' && chunkTotalSteps) {
+        nextMetadata.stepTotal = Number(chunkTotalSteps);
         updateMessage(id, { metadata: nextMetadata });
         return;
       }
 
       // Handle explicit step chunks: type='step' indicates step is now executing
-      if (chunk.type === 'step' && chunk.step) {
+      if (renderType === 'step' && chunk.step) {
         nextMetadata.stepCurrent = chunk.step;
-        nextMetadata.stepTitle = String(chunk.content ?? '');
-        updateMessage(id, { metadata: nextMetadata });
-        return;
-      }
-
-      if (chunk.type === 'steps' && chunk.content) {
-        const total = Number(chunk.content.total ?? 0);
-        const currentStep = Number(chunk.content.current ?? 1);
-        nextMetadata.stepTotal = Number.isFinite(total) ? total : 0;
-        nextMetadata.stepCurrent = Number.isFinite(currentStep) ? currentStep : 1;
+        nextMetadata.stepTitle = String(chunkMessage ?? '');
         updateMessage(id, { metadata: nextMetadata });
         return;
       }
 
       if (chunk.step) {
         const nextStepMap = { ...(nextMetadata.stepMap || {}) };
-        if (chunk.type === 'paragraph') nextStepMap.text = chunk.step;
-        if (chunk.type === 'table-row') nextStepMap.table = chunk.step;
+        if (renderType === 'text') nextStepMap.text = chunk.step;
+        if (renderType === 'table') nextStepMap.table = chunk.step;
         nextMetadata.stepMap = nextStepMap;
         nextMetadata.stepCurrent = chunk.step;
       }
 
-      if (chunk.step_title) {
-        nextMetadata.stepTitle = chunk.step_title;
+      if (chunkStepName) {
+        nextMetadata.stepTitle = String(chunkStepName);
       }
 
-      if (chunk.type === 'table-row' && chunk.content && typeof chunk.content === 'object') {
-        const row = chunk.content as Record<string, any>;
+      if (renderType === 'table' && chunkMessage && typeof chunkMessage === 'object') {
+        const row = chunkMessage as Record<string, any>;
         const existing = nextMetadata.rows || [];
         const columns = nextMetadata.columns || Object.keys(row);
         const newRow = columns.map((name: string) => row[name] ?? '');
@@ -1127,7 +1111,13 @@ export function Canvas() {
         return;
       }
 
-      updateMessage(id, { content: current + String(chunk.content ?? ''), metadata: nextMetadata });
+      if (renderType === 'text' && chunkMessage !== undefined) {
+        const appended = String(chunkMessage);
+        updateMessage(id, { content: current + appended + '\n', metadata: nextMetadata });
+        return;
+      }
+
+      updateMessage(id, { metadata: nextMetadata });
     };
 
     const finalize = (id: string, finalContent: string, meta?: any) => {
@@ -1208,7 +1198,12 @@ export function Canvas() {
         fetch(`${STREAM_BASE}/stream`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ input: userInput, id }),
+          body: JSON.stringify({
+            message: userInput,
+            user_id: Math.floor(Math.random() * 1_000_000_000),
+            thread_id: Math.floor(Math.random() * 1_000_000_000),
+            id
+          }),
           signal: controller.signal
         })
           .then(async (res) => {
@@ -1234,9 +1229,10 @@ export function Canvas() {
                 if (line.trim()) {
                   try {
                     const chunk = JSON.parse(line);
-                    if (chunk.type === 'done') {
+                    const renderType = String(chunk.render_type ?? chunk.type ?? '');
+                    if (renderType === 'done') {
                       sendChunk(id, chunk);
-                      finalize(id, chunk.content, chunk.meta);
+                      finalize(id, String(chunk.message ?? chunk.content ?? ''), chunk.meta);
                     } else {
                       sendChunk(id, chunk);
                     }
@@ -1282,6 +1278,9 @@ export function Canvas() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          message: '',
+          user_id: Math.floor(Math.random() * 1_000_000_000),
+          thread_id: Math.floor(Math.random() * 1_000_000_000),
           hitlActionResult: {
             actionId,
             messageId,
@@ -1302,8 +1301,9 @@ export function Canvas() {
       let backendSuggestedQueries: StreamSuggestedQuery[] = [];
       if (firstLine) {
         const parsed = JSON.parse(firstLine);
-        if (parsed?.type === 'done' && parsed?.content) {
-          backendMessage = String(parsed.content);
+        const parsedRenderType = String(parsed?.render_type ?? parsed?.type ?? '');
+        if (parsedRenderType === 'done' && (parsed?.message ?? parsed?.content)) {
+          backendMessage = String(parsed?.message ?? parsed?.content);
         }
         if (parsed?.meta?.suggestedQueries && Array.isArray(parsed.meta.suggestedQueries)) {
           backendSuggestedQueries = parsed.meta.suggestedQueries

@@ -185,7 +185,7 @@ async def stream(request: Request):
 
     if "application/json" in content_type:
         payload = await request.json()
-        input_text = payload.get("input", "")
+        input_text = payload.get("message", payload.get("input", ""))
         message_id = payload.get("id", "")
         raw_hitl_action_result = payload.get("hitlActionResult")
         if raw_hitl_action_result:
@@ -197,12 +197,14 @@ async def stream(request: Request):
                 hitl_action_result = HITLActionResult.parse_obj(raw_hitl_action_result)
     elif "multipart/form-data" in content_type:
         form = await request.form()
-        input_text = form.get("input", "") or ""
+        input_text = form.get("message", "") or form.get("input", "") or ""
         message_id = form.get("id", "") or ""
         # Files can be attached in multipart uploads; consume to avoid warnings.
         _ = form.getlist("files") if hasattr(form, "getlist") else []
     else:
-        input_text = request.query_params.get("input", "")
+        input_text = request.query_params.get("message", "")
+        if not input_text:
+            input_text = request.query_params.get("input", "")
         message_id = request.query_params.get("id", "")
 
     if hitl_action_result is not None:
@@ -304,8 +306,8 @@ async def stream(request: Request):
         async def hitl_result_stream():
             yield json.dumps(
                 {
-                    "type": "done",
-                    "content": "HITL action result received.",
+                    "render_type": "done",
+                    "message": "HITL action result received.",
                     "meta": {
                         "hitlActionResult": result_payload,
                         "suggestedQueries": suggested_queries,
@@ -320,10 +322,12 @@ async def stream(request: Request):
     # Simulate an LLM producing a plan, then returning table data at completion.
     async def event_stream():
         # Send step metadata first to indicate total steps
-        yield json.dumps({"type": "step-metadata", "total": 3}) + "\n"
+        yield json.dumps({"render_type": "start", "total_steps": 3}) + "\n"
 
         # Step 1: Plan overview - yield step chunk to indicate execution starting
-        yield json.dumps({"type": "step", "content": "Plan overview", "step": 1}) + "\n"
+        yield json.dumps(
+            {"render_type": "step", "message": "Plan overview", "step": 1}
+        ) + "\n"
 
         chunks = [
             "I will propose a table schema for your products. ",
@@ -333,12 +337,19 @@ async def stream(request: Request):
         for c in chunks:
             if await await_disconnect(request):
                 return
-            yield json.dumps({"type": "paragraph", "content": c}) + "\n"
+            yield json.dumps(
+                {
+                    "render_type": "text",
+                    "message": c,
+                    "step": 1,
+                    "step_name": "Plan overview",
+                }
+            ) + "\n"
             await asyncio.sleep(2)
 
         # Step 2: Prepare table payload - yield step chunk to indicate execution starting
         yield json.dumps(
-            {"type": "step", "content": "Prepare table payload", "step": 2}
+            {"render_type": "step", "message": "Prepare table payload", "step": 2}
         ) + "\n"
 
         table_rows = [
@@ -358,7 +369,9 @@ async def stream(request: Request):
             },
         ]
         # Step 3: Finalize - yield step chunk to indicate execution starting
-        yield json.dumps({"type": "step", "content": "Finalize", "step": 3}) + "\n"
+        yield json.dumps(
+            {"render_type": "step", "message": "Finalize", "step": 3}
+        ) + "\n"
 
         hitl = HITLAction(
             type="form",
@@ -404,6 +417,8 @@ async def stream(request: Request):
                     "tableDataString": json.dumps(table_rows),
                     "suggestedQueries": build_suggested_queries(input_text),
                 },
+                "render_type": "done",
+                "message": "",
             }
         ) + "\n"
 
