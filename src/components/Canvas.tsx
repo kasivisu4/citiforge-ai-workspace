@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { TrendingUp, Shield, ArrowUpRight, ArrowDownRight, PieChart } from 'lucide-react';
+import { DashboardGenerator } from '@/components/DashboardGenerator';
 import { FixedSizeList as List } from 'react-window';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, ChatMode, type HITLResponse as StoreHITLResponse } from '@/store/useAppStore';
@@ -1396,8 +1397,10 @@ export function Canvas() {
         </div>
       </div>
 
-      {/* Main content area */}
-      {!activeAgent ? <div className="flex-1 citi-gradient-bg citi-grid-pattern flex items-center justify-center relative overflow-hidden">
+      {/* Dashboard Generator — full-screen override */}
+      {activeAgent === 'dashboard-generator' ? (
+        <DashboardGenerator />
+      ) : !activeAgent ? <div className="flex-1 citi-gradient-bg citi-grid-pattern flex items-center justify-center relative overflow-hidden">
           <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -1448,7 +1451,7 @@ export function Canvas() {
             </motion.div>
             }
 
-          {!messages.some((m) => m.sessionId === currentSessionId) && activeAgent && activeAgent !== 'data-modeler' &&
+          {!messages.some((m) => m.sessionId === currentSessionId) && activeAgent && activeAgent !== 'data-modeler' && (activeAgent as string) !== 'dashboard-generator' &&
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
