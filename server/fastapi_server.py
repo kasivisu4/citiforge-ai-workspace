@@ -71,6 +71,54 @@ class HITLActionResult(BaseModel):
     submittedAt: Optional[float] = None
 
 
+def build_suggested_queries(input_text: str) -> List[Dict[str, Any]]:
+    text = (input_text or "").lower()
+    if "migration" in text or "sql" in text:
+        return [
+            {
+                "id": "sq_generate_sql",
+                "title": "⚡ Generate Migration",
+                "description": "Create SQL migration from the latest schema.",
+                "prompt": "Generate SQL migration script for this schema.",
+                "variant": "primary",
+            },
+            {
+                "id": "sq_edit_schema",
+                "title": "🛠 Edit Schema",
+                "description": "Adjust fields and naming before apply.",
+                "prompt": "Edit the schema with my latest changes.",
+            },
+            {
+                "id": "sq_validate_model",
+                "title": "🧪 Validate Model",
+                "description": "Run consistency and type checks.",
+                "prompt": "Validate this model and list any risks or inconsistencies.",
+            },
+        ]
+
+    return [
+        {
+            "id": "sq_generate_sql",
+            "title": "⚡ Generate Migration",
+            "description": "Create migration SQL from your latest schema.",
+            "prompt": "Generate SQL migration script for this schema.",
+            "variant": "primary",
+        },
+        {
+            "id": "sq_edit_schema",
+            "title": "🛠 Edit Schema",
+            "description": "Adjust fields, enums, and naming quickly.",
+            "prompt": "Edit the schema with my latest changes.",
+        },
+        {
+            "id": "sq_seed_data",
+            "title": "🌱 Create Seed Data",
+            "description": "Generate realistic sample records for testing.",
+            "prompt": "Create representative seed data for this schema.",
+        },
+    ]
+
+
 @app.get("/sessions")
 async def list_sessions():
     return list(SESSIONS.values())
@@ -163,14 +211,105 @@ async def stream(request: Request):
             if hasattr(hitl_action_result, "model_dump")
             else hitl_action_result.dict()
         )
-        print("[MOCK HITL] Received action result via /stream:", json.dumps(result_payload))
+        action_id = str(result_payload.get("actionId") or "")
+        suggested_queries = [
+            {
+                "id": "sq_generate_sql",
+                "title": "⚡ Generate Migration",
+                "description": "Create migration SQL from the latest schema.",
+                "prompt": "Generate SQL migration script for this schema.",
+                "variant": "primary",
+            },
+            {
+                "id": "sq_edit_schema",
+                "title": "🛠 Edit Schema",
+                "description": "Adjust fields, enums, and naming before finalizing.",
+                "prompt": "Edit the schema with my latest changes.",
+            },
+            {
+                "id": "sq_refine_constraints",
+                "title": "✅ Tighten Rules",
+                "description": "Add nullable, compliance, and naming constraints.",
+                "prompt": "Refine this schema with stricter constraints and validation rules.",
+            },
+            {
+                "id": "sq_add_indexes",
+                "title": "📈 Suggest Indexes",
+                "description": "Recommend indexes for read/write performance.",
+                "prompt": "Suggest indexes and explain expected performance impact.",
+            },
+        ]
+        if action_id == "submit_form":
+            suggested_queries = [
+                {
+                    "id": "sq_generate_sql",
+                    "title": "⚡ Generate Migration",
+                    "description": "Create migration SQL for approved schema values.",
+                    "prompt": "Generate SQL migration script using the approved form values.",
+                    "variant": "primary",
+                },
+                {
+                    "id": "sq_edit_schema",
+                    "title": "🛠 Edit Schema",
+                    "description": "Update the model before moving ahead.",
+                    "prompt": "Edit the approved schema with additional changes.",
+                },
+                {
+                    "id": "sq_validate_model",
+                    "title": "🧪 Validate Model",
+                    "description": "Run consistency and type validation checks.",
+                    "prompt": "Validate this model and list any risks or inconsistencies.",
+                },
+                {
+                    "id": "sq_seed_data",
+                    "title": "🌱 Create Seed Data",
+                    "description": "Produce realistic sample records for testing.",
+                    "prompt": "Create representative seed data for this approved schema.",
+                },
+            ]
+        elif action_id in {"modify", "edit_schema"}:
+            suggested_queries = [
+                {
+                    "id": "sq_generate_sql",
+                    "title": "⚡ Generate Migration",
+                    "description": "Build migration SQL once edits are complete.",
+                    "prompt": "Generate SQL migration for the updated schema.",
+                    "variant": "primary",
+                },
+                {
+                    "id": "sq_edit_schema",
+                    "title": "🛠 Edit Schema",
+                    "description": "Continue refining fields and enums.",
+                    "prompt": "Edit core fields, data types, and enums based on feedback.",
+                },
+                {
+                    "id": "sq_compare_versions",
+                    "title": "🔎 Compare Versions",
+                    "description": "Highlight changes from prior proposal.",
+                    "prompt": "Compare the current schema with the previous version and summarize differences.",
+                },
+                {
+                    "id": "sq_collect_requirements",
+                    "title": "🧩 Capture Gaps",
+                    "description": "List open questions before final approval.",
+                    "prompt": "List the missing requirements I should confirm before approval.",
+                },
+            ]
+
+        print(
+            "[MOCK HITL] Received action result via /stream:",
+            json.dumps(result_payload),
+        )
 
         async def hitl_result_stream():
             yield json.dumps(
                 {
                     "type": "done",
                     "content": "HITL action result received.",
-                    "meta": {"hitlActionResult": result_payload},
+                    "meta": {
+                        "hitlActionResult": result_payload,
+                        "suggestedQueries": suggested_queries,
+                    },
                 }
             ) + "\n"
 
@@ -178,7 +317,7 @@ async def stream(request: Request):
             hitl_result_stream(), media_type="application/x-ndjson"
         )
 
-    # Simulate an LLM producing a plan, then streaming table rows as objects
+    # Simulate an LLM producing a plan, then returning table data at completion.
     async def event_stream():
         # Send step metadata first to indicate total steps
         yield json.dumps({"type": "step-metadata", "total": 3}) + "\n"
@@ -189,7 +328,7 @@ async def stream(request: Request):
         chunks = [
             "I will propose a table schema for your products. ",
             "First I will list columns and types. ",
-            "Then I will stream the table as rows.",
+            "Then I will return the full table payload for rendering.",
         ]
         for c in chunks:
             if await await_disconnect(request):
@@ -197,9 +336,9 @@ async def stream(request: Request):
             yield json.dumps({"type": "paragraph", "content": c}) + "\n"
             await asyncio.sleep(2)
 
-        # Step 2: Stream table rows - yield step chunk to indicate execution starting
+        # Step 2: Prepare table payload - yield step chunk to indicate execution starting
         yield json.dumps(
-            {"type": "step", "content": "Stream table rows", "step": 2}
+            {"type": "step", "content": "Prepare table payload", "step": 2}
         ) + "\n"
 
         table_rows = [
@@ -218,12 +357,6 @@ async def stream(request: Request):
                 "available_since": "2024-02-15T00:00:00Z",
             },
         ]
-        for row in table_rows:
-            if await await_disconnect(request):
-                return
-            yield json.dumps({"type": "table-row", "content": row}) + "\n"
-            await asyncio.sleep(0.1)
-
         # Step 3: Finalize - yield step chunk to indicate execution starting
         yield json.dumps({"type": "step", "content": "Finalize", "step": 3}) + "\n"
 
@@ -263,7 +396,15 @@ async def stream(request: Request):
         hitl_payload = hitl.model_dump() if hasattr(hitl, "model_dump") else hitl.dict()
 
         yield json.dumps(
-            {"type": "done", "content": "", "meta": {"hitl": hitl_payload}}
+            {
+                "type": "done",
+                "content": "",
+                "meta": {
+                    "hitl": hitl_payload,
+                    "tableDataString": json.dumps(table_rows),
+                    "suggestedQueries": build_suggested_queries(input_text),
+                },
+            }
         ) + "\n"
 
     # Fast helper to check client disconnect in generator context

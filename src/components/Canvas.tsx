@@ -34,6 +34,84 @@ interface AgentResponse {
   streaming?: boolean;
 }
 
+interface StreamSuggestedQuery {
+  id: string;
+  title: string;
+  description: string;
+  prompt?: string;
+  variant?: 'primary' | 'secondary';
+}
+
+const SUGGESTED_QUERY_OVERRIDES: Record<string, Partial<StreamSuggestedQuery>> = {
+  sq_generate_sql: {
+    title: '⚡ Generate Migration',
+    description: 'Create migration SQL from your latest schema.',
+    variant: 'primary'
+  },
+  sq_edit_schema: {
+    title: '🛠 Edit Schema',
+    description: 'Adjust fields, enums, and naming quickly.'
+  },
+  sq_validate_model: {
+    title: '🧪 Validate Model'
+  },
+  sq_seed_data: {
+    title: '🌱 Create Seed Data'
+  },
+  sq_compare_versions: {
+    title: '🔎 Compare Versions'
+  },
+  sq_collect_requirements: {
+    title: '🧩 Capture Gaps'
+  }
+};
+
+function normalizeSuggestedFeed(
+queries: StreamSuggestedQuery[])
+{
+  const merged = queries.map((query) => {
+    const override = SUGGESTED_QUERY_OVERRIDES[query.id] || {};
+    return {
+      ...query,
+      ...override,
+      title: String((override.title ?? query.title) || '').trim(),
+      description: String((override.description ?? query.description) || '').trim(),
+      variant: (override.variant ?? query.variant) as StreamSuggestedQuery['variant']
+    };
+  });
+
+  if (!merged.some((query) => query.id === 'sq_generate_sql')) {
+    merged.unshift({
+      id: 'sq_generate_sql',
+      title: '⚡ Generate Migration',
+      description: 'Create migration SQL from your latest schema.',
+      prompt: 'Generate SQL migration script for this schema.',
+      variant: 'primary'
+    });
+  }
+
+  if (!merged.some((query) => query.id === 'sq_edit_schema')) {
+    merged.push({
+      id: 'sq_edit_schema',
+      title: '🛠 Edit Schema',
+      description: 'Adjust fields, enums, and naming quickly.',
+      prompt: 'Edit the schema with my latest changes.',
+      variant: 'secondary'
+    });
+  }
+
+  const unique = merged.filter((query, index, arr) =>
+  arr.findIndex((candidate) => candidate.id === query.id) === index
+  );
+
+  return unique.sort((left, right) => {
+    const leftPrimary = left.variant === 'primary' || left.id === 'sq_generate_sql';
+    const rightPrimary = right.variant === 'primary' || right.id === 'sq_generate_sql';
+    if (leftPrimary === rightPrimary) return 0;
+    return leftPrimary ? -1 : 1;
+  });
+}
+
 const suggestedQueries = {
   'data-modeler': [
   {
@@ -919,6 +997,7 @@ export function Canvas() {
   const chatInputRef = useRef<HTMLInputElement | null>(null);
   const [mentionIndex, setMentionIndex] = useState<number | null>(null);
   const [showMentions, setShowMentions] = useState(false);
+  const [feedQueries, setFeedQueries] = useState<StreamSuggestedQuery[]>([]);
   const mentionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const atSuggestions = ['@productName', '@managerId', '@launchDate', '@status'];
 
@@ -1057,8 +1136,8 @@ export function Canvas() {
       const msg = store.messages.find((m) => m.id === id);
       const accumulated = msg?.content || '';
 
-      // Extract table and hitl from meta
-      const { table, hitl } = meta || {};
+      // Extract table, hitl, and suggested queries from meta
+      const { table, tableDataString, hitl, suggestedQueries } = meta || {};
 
       // Build final message updates: keep accumulated text, add table/hitl metadata
       const updates: any = {
@@ -1079,8 +1158,41 @@ export function Canvas() {
         updates.contentType = 'table'; // render as table
       }
 
+      if (!table && typeof tableDataString === 'string') {
+        try {
+          const parsedRows = JSON.parse(tableDataString);
+          if (Array.isArray(parsedRows) && parsedRows.length > 0 && typeof parsedRows[0] === 'object' && parsedRows[0] !== null) {
+            const columns = Object.keys(parsedRows[0] as Record<string, unknown>);
+            const rows = parsedRows.map((row) =>
+            columns.map((name) => {
+              const record = row as Record<string, unknown>;
+              const value = record[name];
+              return value === null || value === undefined ? '' : String(value);
+            })
+            );
+
+            updates.metadata = {
+              ...(updates.metadata || {}),
+              columns,
+              rows,
+              tableDataString
+            };
+            updates.contentType = 'table';
+          }
+        } catch {
+          // no-op: keep text rendering if table payload parsing fails
+        }
+      }
+
       if (hitl) {
         updates.hitl = hitl;
+      }
+
+      if (Array.isArray(suggestedQueries) && suggestedQueries.length > 0) {
+        updates.metadata = {
+          ...(updates.metadata || {}),
+          suggestedQueries
+        };
       }
 
       updateMessage(id, updates);
@@ -1187,10 +1299,26 @@ export function Canvas() {
       const body = await res.text();
       const firstLine = body.split('\n').find((line) => line.trim());
       let backendMessage = 'HITL action result submitted to backend.';
+      let backendSuggestedQueries: StreamSuggestedQuery[] = [];
       if (firstLine) {
         const parsed = JSON.parse(firstLine);
         if (parsed?.type === 'done' && parsed?.content) {
           backendMessage = String(parsed.content);
+        }
+        if (parsed?.meta?.suggestedQueries && Array.isArray(parsed.meta.suggestedQueries)) {
+          backendSuggestedQueries = parsed.meta.suggestedQueries
+            .filter((query: unknown) => Boolean(query && typeof query === 'object'))
+            .map((query: unknown) => {
+              const record = query as Record<string, unknown>;
+              return {
+                id: String(record.id ?? crypto.randomUUID()),
+                title: String(record.title ?? ''),
+                description: String(record.description ?? ''),
+                prompt: typeof record.prompt === 'string' ? record.prompt : undefined,
+                variant: record.variant === 'primary' ? 'primary' : undefined
+              };
+            })
+            .filter((query: StreamSuggestedQuery) => query.title.length > 0);
         }
       }
 
@@ -1200,7 +1328,8 @@ export function Canvas() {
         content: backendMessage,
         timestamp: new Date(),
         mode: chatMode,
-        contentType: 'text'
+        contentType: 'text',
+        metadata: backendSuggestedQueries.length ? { suggestedQueries: backendSuggestedQueries } : undefined
       });
     } catch (error) {
       addMessage({
@@ -1218,6 +1347,43 @@ export function Canvas() {
       if (messageId) setHitlUnlockedFor((s) => Array.from(new Set([...s, messageId])));
       return;
     }
+  };
+
+  const sessionMessages = useMemo(
+    () => messages.filter((m) => m.sessionId === currentSessionId),
+    [messages, currentSessionId]
+  );
+
+  const latestSuggestedQueries = useMemo<StreamSuggestedQuery[]>(() => {
+    for (let idx = sessionMessages.length - 1; idx >= 0; idx -= 1) {
+      const candidate = sessionMessages[idx]?.metadata?.suggestedQueries;
+      if (Array.isArray(candidate) && candidate.length > 0) {
+        return candidate
+          .filter((query) => Boolean(query && typeof query === 'object'))
+          .map((query) => {
+            const queryObj = query as Record<string, unknown>;
+            return {
+              id: String(queryObj.id ?? crypto.randomUUID()),
+              title: String(queryObj.title ?? ''),
+              description: String(queryObj.description ?? ''),
+              prompt: typeof queryObj.prompt === 'string' ? queryObj.prompt : undefined
+            };
+          })
+          .filter((query) => query.title.length > 0);
+      }
+    }
+    return [];
+  }, [sessionMessages]);
+
+  useEffect(() => {
+    if (!latestSuggestedQueries.length) return;
+    setFeedQueries(normalizeSuggestedFeed(latestSuggestedQueries));
+  }, [latestSuggestedQueries]);
+
+  const handleFeedSelect = (query: StreamSuggestedQuery) => {
+    const queryPrompt = query.prompt || query.title;
+    handleQuerySelect(queryPrompt);
+    setTimeout(() => chatInputRef.current?.focus(), 0);
   };
 
   // Table editing removed: schema updates should come from backend flows
@@ -1421,7 +1587,7 @@ export function Canvas() {
             </motion.div>
             }
 
-          {messages.filter((m) => m.sessionId === currentSessionId).map((msg, idx) =>
+          {sessionMessages.map((msg, idx) =>
             <motion.div
               key={msg.id}
               initial={{ opacity: 0, y: 10 }}
@@ -1480,7 +1646,39 @@ export function Canvas() {
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-border bg-card px-6 py-4 space-y-3">
+      <div className="px-6 py-4 space-y-3">
+        {feedQueries.length > 0 &&
+        <motion.div
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="space-y-2">
+
+            <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+              <MessageSquare size={14} />
+              Suggested queries
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {feedQueries.map((query) => {
+              const isPrimary = query.variant === 'primary' || query.id === 'sq_generate_sql';
+              return (
+                <button
+                  key={query.id}
+                  onClick={() => handleFeedSelect(query)}
+                  className={`text-left px-3 py-2 rounded-lg transition-all duration-200 max-w-[320px] transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                  isPrimary ?
+                  'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm hover:shadow-md' :
+                  'bg-muted text-foreground hover:bg-muted/80 hover:shadow-sm'}`
+                  }>
+
+                    <p className={`text-xs font-semibold leading-tight ${isPrimary ? 'text-primary-foreground' : 'text-foreground'}`}>{query.title}</p>
+                    {query.description ? <p className={`text-[11px] mt-0.5 leading-tight ${isPrimary ? 'text-primary-foreground/90' : 'text-muted-foreground'}`}>{query.description}</p> : null}
+                  </button>);
+            })}
+            </div>
+          </motion.div>
+        }
+
         <div className="flex items-center gap-3">
           <div className="flex-1 relative">
             {/* Attachment display */}
@@ -1528,8 +1726,7 @@ export function Canvas() {
 
               {/* Text input */}
               {(() => {
-                  const sessionMsgs = messages.filter((m) => m.sessionId === currentSessionId);
-                  const activeHitlMsg = sessionMsgs.find((m) => m.hitl);
+                  const activeHitlMsg = sessionMessages.find((m) => m.hitl);
                   const isLocked = !!activeHitlMsg && !(activeHitlMsg && hitlUnlockedFor.includes(activeHitlMsg.id));
                   return (
                     <input

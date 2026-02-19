@@ -14,11 +14,13 @@ function generateMock(userInput) {
   const isModel = lower.includes('design') || lower.includes('model') || lower.includes('product');
 
   if (isModel) {
-    const table = `| Column | Type | Nullable | Description |\n|--------|------|----------|-------------|\n| productId | UUID | No | Unique identifier for the product |\n| productName | VARCHAR(255) | No | Human-readable name of the product |\n| productType | ENUM | No | Category: DEPOSIT, CREDIT, INVESTMENT, INSURANCE |\n| description | TEXT | Yes | Detailed product description |`;
-
     const intro = "I've designed a Products table schema for your financial database. Review the schema below:";
+    const tableRows = [
+      { id: 'p1', name: 'Product A', price: 9.99, currency: 'USD', available_since: '2024-01-10T00:00:00Z' },
+      { id: 'p2', name: 'Product B', price: 19.99, currency: 'USD', available_since: '2024-02-15T00:00:00Z' }
+    ];
 
-    const content = intro + '\n\n' + table;
+    const content = intro;
 
     const hitl = {
       type: 'form',
@@ -32,10 +34,59 @@ function generateMock(userInput) {
       metadata: { hint: 'Submit the form to continue, or modify in chat before submitting.' }
     };
 
-    return { content, hitl, metadata: { schemaName: 'products' }, contentType: 'markdown' };
+    return { content, hitl, metadata: { schemaName: 'products', tableDataString: JSON.stringify(tableRows) }, contentType: 'text' };
   }
 
   return { content: 'I can help you design database models. Try asking me to design a model for products.', contentType: 'text' };
+}
+
+function buildSuggestedQueries(userInput) {
+  const text = String(userInput || '').toLowerCase();
+  if (text.includes('migration') || text.includes('sql')) {
+    return [
+      {
+        id: 'sq_generate_sql',
+        title: '⚡ Generate Migration',
+        description: 'Create SQL migration from the latest schema.',
+        prompt: 'Generate SQL migration script for this schema.',
+        variant: 'primary'
+      },
+      {
+        id: 'sq_edit_schema',
+        title: '🛠 Edit Schema',
+        description: 'Adjust fields and naming before apply.',
+        prompt: 'Edit the schema with my latest changes.'
+      },
+      {
+        id: 'sq_validate_model',
+        title: '🧪 Validate Model',
+        description: 'Run consistency and type checks.',
+        prompt: 'Validate this model and list any risks or inconsistencies.'
+      }
+    ];
+  }
+
+  return [
+    {
+      id: 'sq_generate_sql',
+      title: '⚡ Generate Migration',
+      description: 'Create migration SQL from your latest schema.',
+      prompt: 'Generate SQL migration script for this schema.',
+      variant: 'primary'
+    },
+    {
+      id: 'sq_edit_schema',
+      title: '🛠 Edit Schema',
+      description: 'Adjust fields, enums, and naming quickly.',
+      prompt: 'Edit the schema with my latest changes.'
+    },
+    {
+      id: 'sq_seed_data',
+      title: '🌱 Create Seed Data',
+      description: 'Generate realistic sample records for testing.',
+      prompt: 'Create representative seed data for this schema.'
+    }
+  ];
 }
 
 const server = http.createServer((req, res) => {
@@ -60,13 +111,7 @@ const server = http.createServer((req, res) => {
 
       const mock = generateMock(input);
       const full = mock.content || '';
-      const tableIndex = full.indexOf('\n|');
-      let intro = full;
-      let table = '';
-      if (tableIndex !== -1) {
-        intro = full.slice(0, tableIndex).trim();
-        table = full.slice(tableIndex).trim();
-      }
+      const intro = full.trim();
 
       const words = intro.split(/(\s+)/).filter(Boolean);
       let idx = 0;
@@ -80,8 +125,8 @@ const server = http.createServer((req, res) => {
         clearInterval(interval);
 
         // send final combined content
-        const finalContent = intro + (table ? '\n\n' + table : '');
-        writeSSE(res, 'done', JSON.stringify({ content: finalContent, meta: { hitl: mock.hitl, metadata: mock.metadata, contentType: mock.contentType } }));
+        const finalContent = intro;
+        writeSSE(res, 'done', JSON.stringify({ content: finalContent, meta: { hitl: mock.hitl, metadata: mock.metadata, contentType: mock.contentType, suggestedQueries: buildSuggestedQueries(input) } }));
         // close after a brief delay
         setTimeout(() => res.end(), 200);
       }, 120);
@@ -107,6 +152,93 @@ const server = http.createServer((req, res) => {
         }
 
         if (payload.hitlActionResult) {
+          const actionId = String(payload.hitlActionResult.actionId || '');
+          let suggestedQueries = [
+            {
+              id: 'sq_generate_sql',
+              title: '⚡ Generate Migration',
+              description: 'Create migration SQL from the latest schema.',
+              prompt: 'Generate SQL migration script for this schema.',
+              variant: 'primary'
+            },
+            {
+              id: 'sq_edit_schema',
+              title: '🛠 Edit Schema',
+              description: 'Adjust fields, enums, and naming before finalizing.',
+              prompt: 'Edit the schema with my latest changes.'
+            },
+            {
+              id: 'sq_refine_constraints',
+              title: '✅ Tighten Rules',
+              description: 'Add nullable, compliance, and naming constraints.',
+              prompt: 'Refine this schema with stricter constraints and validation rules.'
+            },
+            {
+              id: 'sq_add_indexes',
+              title: '📈 Suggest Indexes',
+              description: 'Recommend indexes for read/write performance.',
+              prompt: 'Suggest indexes and explain expected performance impact.'
+            }
+          ];
+
+          if (actionId === 'submit_form') {
+            suggestedQueries = [
+              {
+                id: 'sq_generate_sql',
+                title: '⚡ Generate Migration',
+                description: 'Create migration SQL for approved schema values.',
+                prompt: 'Generate SQL migration script using the approved form values.',
+                variant: 'primary'
+              },
+              {
+                id: 'sq_edit_schema',
+                title: '🛠 Edit Schema',
+                description: 'Update the model before moving ahead.',
+                prompt: 'Edit the approved schema with additional changes.'
+              },
+              {
+                id: 'sq_validate_model',
+                title: '🧪 Validate Model',
+                description: 'Run consistency and type validation checks.',
+                prompt: 'Validate this model and list any risks or inconsistencies.'
+              },
+              {
+                id: 'sq_seed_data',
+                title: '🌱 Create Seed Data',
+                description: 'Produce realistic sample records for testing.',
+                prompt: 'Create representative seed data for this approved schema.'
+              }
+            ];
+          } else if (actionId === 'modify' || actionId === 'edit_schema') {
+            suggestedQueries = [
+              {
+                id: 'sq_generate_sql',
+                title: '⚡ Generate Migration',
+                description: 'Build migration SQL once edits are complete.',
+                prompt: 'Generate SQL migration for the updated schema.',
+                variant: 'primary'
+              },
+              {
+                id: 'sq_edit_schema',
+                title: '🛠 Edit Schema',
+                description: 'Continue refining fields and enums.',
+                prompt: 'Edit core fields, data types, and enums based on feedback.'
+              },
+              {
+                id: 'sq_compare_versions',
+                title: '🔎 Compare Versions',
+                description: 'Highlight changes from prior proposal.',
+                prompt: 'Compare the current schema with the previous version and summarize differences.'
+              },
+              {
+                id: 'sq_collect_requirements',
+                title: '🧩 Capture Gaps',
+                description: 'List open questions before final approval.',
+                prompt: 'List the missing requirements I should confirm before approval.'
+              }
+            ];
+          }
+
           res.writeHead(200, {
             'Content-Type': 'application/x-ndjson',
             'Cache-Control': 'no-cache',
@@ -114,7 +246,7 @@ const server = http.createServer((req, res) => {
             'Access-Control-Allow-Origin': '*',
           });
           console.log('[MOCK HITL] Received action result via /stream:', JSON.stringify(payload.hitlActionResult));
-          res.write(JSON.stringify({ type: 'done', content: 'HITL action result received.', meta: { hitlActionResult: payload.hitlActionResult } }) + '\n');
+          res.write(JSON.stringify({ type: 'done', content: 'HITL action result received.', meta: { hitlActionResult: payload.hitlActionResult, suggestedQueries } }) + '\n');
           res.end();
           return;
         }
