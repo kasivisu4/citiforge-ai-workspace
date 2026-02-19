@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
+import { TrendingUp, Shield, ArrowUpRight, ArrowDownRight, PieChart } from 'lucide-react';
 import { FixedSizeList as List } from 'react-window';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAppStore, ChatMode, type HITLResponse as StoreHITLResponse } from '@/store/useAppStore';
@@ -809,7 +811,7 @@ finalize: (id: string, finalContent: string, meta?: any) => void)
   const words = intro.split(/(\s+)/).filter(Boolean);
   let idx = 0;
 
-  sendChunk(messageId, { type: 'steps', content: { total: 3, current: 1 } });
+  sendChunk(messageId, { type: 'steps', content: JSON.stringify({ total: 3, current: 1 }) });
 
   const interval = setInterval(() => {
     if (idx < words.length) {
@@ -1277,6 +1279,145 @@ export function Canvas() {
 
                 )}
               </div>
+            </motion.div>
+            }
+
+          {!messages.some((m) => m.sessionId === currentSessionId) && activeAgent && activeAgent !== 'data-modeler' &&
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="space-y-6"
+            >
+              <div>
+                <h2 className="text-2xl font-bold text-foreground">
+                  {activeAgent === 'data-analysis' ? 'Data Analysis Engine' : activeAgent === 'documentation' ? 'Documentation Suite' : 'Templates Gallery'}
+                </h2>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {activeAgent === 'data-analysis' ? 'Portfolio risk & transaction intelligence' : activeAgent === 'documentation' ? 'Auto-generate audit-ready documentation' : 'Browse and import ready-made templates'}
+                </p>
+              </div>
+
+              {/* Stats row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                {[
+                  { title: 'Total Assets', value: '$2.4T', change: '+12.3% YoY', positive: true, icon: TrendingUp },
+                  { title: 'Risk Score', value: '72/100', change: '-3.2 pts', positive: false, icon: Shield },
+                  { title: 'Active Models', value: '1,247', change: '+89 this week', positive: true, icon: Activity },
+                  { title: 'Compliance', value: '99.7%', change: '+0.2%', positive: true, icon: BarChart3 },
+                ].map((stat) => (
+                  <motion.div key={stat.title} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="citi-card p-5">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{stat.title}</p>
+                        <p className="text-2xl font-bold text-foreground mt-1">{stat.value}</p>
+                        <div className={`flex items-center gap-1 mt-1 text-xs font-medium ${stat.positive ? 'text-emerald-600' : 'text-destructive'}`}>
+                          {stat.positive ? <ArrowUpRight size={12} /> : <ArrowDownRight size={12} />}
+                          {stat.change}
+                        </div>
+                      </div>
+                      <div className="w-10 h-10 rounded-xl bg-secondary/10 flex items-center justify-center">
+                        <stat.icon size={18} className="text-secondary" />
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              {/* Charts */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="citi-card p-5 lg:col-span-2">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Portfolio Performance</h3>
+                      <p className="text-xs text-muted-foreground mt-0.5">7-month trend analysis</p>
+                    </div>
+                    <PieChart size={16} className="text-muted-foreground" />
+                  </div>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <AreaChart data={[
+                      { name: 'Jan', value: 4200, prev: 3800 },
+                      { name: 'Feb', value: 4800, prev: 4100 },
+                      { name: 'Mar', value: 4600, prev: 4300 },
+                      { name: 'Apr', value: 5200, prev: 4500 },
+                      { name: 'May', value: 5800, prev: 4800 },
+                      { name: 'Jun', value: 6100, prev: 5200 },
+                      { name: 'Jul', value: 5900, prev: 5500 },
+                    ]}>
+                      <defs>
+                        <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="hsl(195, 100%, 47%)" stopOpacity={0.3} />
+                          <stop offset="100%" stopColor="hsl(195, 100%, 47%)" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 92%)" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'hsl(210, 10%, 50%)' }} />
+                      <YAxis tick={{ fontSize: 11, fill: 'hsl(210, 10%, 50%)' }} />
+                      <RechartsTooltip contentStyle={{ background: 'hsl(0, 0%, 100%)', border: '1px solid hsl(210, 20%, 90%)', borderRadius: '12px', fontSize: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }} />
+                      <Area type="monotone" dataKey="prev" stroke="hsl(210, 20%, 80%)" fill="transparent" strokeDasharray="4 4" strokeWidth={1.5} />
+                      <Area type="monotone" dataKey="value" stroke="hsl(195, 100%, 47%)" fill="url(#colorValue)" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </motion.div>
+
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="citi-card p-5">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-foreground">Asset Allocation</h3>
+                    <p className="text-xs text-muted-foreground mt-0.5">Current distribution</p>
+                  </div>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={[
+                      { name: 'Equities', value: 42 },
+                      { name: 'Fixed Inc', value: 28 },
+                      { name: 'Commodities', value: 15 },
+                      { name: 'FX', value: 10 },
+                      { name: 'Alt', value: 5 },
+                    ]} layout="vertical">
+                      <CartesianGrid strokeDasharray="3 3" stroke="hsl(210, 20%, 92%)" horizontal={false} />
+                      <XAxis type="number" tick={{ fontSize: 11, fill: 'hsl(210, 10%, 50%)' }} />
+                      <YAxis dataKey="name" type="category" tick={{ fontSize: 11, fill: 'hsl(210, 10%, 50%)' }} width={70} />
+                      <RechartsTooltip contentStyle={{ background: 'hsl(0, 0%, 100%)', border: '1px solid hsl(210, 20%, 90%)', borderRadius: '12px', fontSize: '12px' }} />
+                      <Bar dataKey="value" fill="hsl(207, 100%, 22%)" radius={[0, 6, 6, 0]} barSize={20} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </motion.div>
+              </div>
+
+              {/* Recent Activity */}
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }} className="citi-card p-5">
+                <h3 className="text-sm font-semibold text-foreground mb-4">Recent Activity</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Action</th>
+                        <th className="text-left py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Agent</th>
+                        <th className="text-left py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</th>
+                        <th className="text-right py-2 text-xs font-medium text-muted-foreground uppercase tracking-wide">Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { action: 'KYC screening model updated', agent: 'Data Analysis', status: 'Complete', time: '2m ago' },
+                        { action: 'Loan portfolio heatmap generated', agent: 'Data Modeler', status: 'Complete', time: '8m ago' },
+                        { action: 'Basel III report draft', agent: 'Documentation', status: 'In Review', time: '14m ago' },
+                        { action: 'SWIFT message template imported', agent: 'Templates', status: 'Complete', time: '22m ago' },
+                      ].map((row, i) => (
+                        <tr key={i} className="border-b border-border/50 last:border-0">
+                          <td className="py-3 font-medium text-foreground">{row.action}</td>
+                          <td className="py-3 text-muted-foreground">{row.agent}</td>
+                          <td className="py-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${row.status === 'Complete' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                              {row.status}
+                            </span>
+                          </td>
+                          <td className="py-3 text-right text-muted-foreground text-xs">{row.time}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </motion.div>
             </motion.div>
             }
 
