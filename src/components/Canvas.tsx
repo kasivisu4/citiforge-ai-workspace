@@ -1650,6 +1650,104 @@ export function Canvas() {
 
       {/* Input Area */}
       <div className="px-6 py-4 space-y-3">
+        {/* HITL Panel — slides up above input for binary/options HITL */}
+        <AnimatePresence>
+          {(() => {
+            const pendingHitl = sessionMessages
+              .filter((m) => m.hitl && (m.hitl.type === 'binary' || m.hitl.type === 'options'))
+              .slice(-1)[0];
+            if (!pendingHitl?.hitl) return null;
+            const hitl = pendingHitl.hitl;
+            const options = hitl.options || [];
+            return (
+              <motion.div
+                key={pendingHitl.id}
+                initial={{ height: 0, opacity: 0, y: 12 }}
+                animate={{ height: 'auto', opacity: 1, y: 0 }}
+                exit={{ height: 0, opacity: 0, y: 12 }}
+                transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+                className="overflow-hidden"
+              >
+                <div className="bg-card border border-border rounded-xl p-4 shadow-lg shadow-primary/5 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                        <MessageSquare size={14} className="text-primary" />
+                      </div>
+                      <div className="min-w-0">
+                        {hitl.title && (
+                          <h4 className="text-sm font-semibold text-foreground leading-tight truncate">{hitl.title}</h4>
+                        )}
+                        {hitl.message && (
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{hitl.message}</p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleHITLAction('dismiss', pendingHitl.id)}
+                      className="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                      title="Dismiss"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {options.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {options.map((option) => {
+                        const variant = String(option.style?.variant || '').toLowerCase();
+                        const isPrimary = variant === 'primary';
+                        const isDestructive = variant === 'destructive' || variant === 'danger';
+                        return (
+                          <motion.button
+                            key={option.id}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={() => handleHITLAction(option.id, pendingHitl.id)}
+                            className={`px-4 py-2 rounded-lg font-medium text-xs transition-all ${
+                              isPrimary
+                                ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm'
+                                : isDestructive
+                                ? 'bg-destructive/10 text-destructive hover:bg-destructive/20 border border-destructive/20'
+                                : 'bg-muted text-foreground hover:bg-muted/80 border border-border'
+                            }`}
+                          >
+                            {option.label}
+                            {option.description && (
+                              <span className="block text-[10px] font-normal opacity-70 mt-0.5">{option.description}</span>
+                            )}
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {hitl.type === 'binary' && options.length === 0 && (
+                    <div className="flex gap-2">
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleHITLAction('approve', pendingHitl.id)}
+                        className="flex-1 px-4 py-2.5 rounded-lg font-medium text-xs bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <Check size={14} /> Approve
+                      </motion.button>
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                        onClick={() => handleHITLAction('reject', pendingHitl.id)}
+                        className="flex-1 px-4 py-2.5 rounded-lg font-medium text-xs bg-muted text-foreground hover:bg-muted/80 border border-border transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <X size={14} /> Reject
+                      </motion.button>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })()}
+        </AnimatePresence>
+
         {feedQueries.length > 0 &&
         <motion.div
           initial={{ opacity: 0, y: 6 }}
