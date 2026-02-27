@@ -1109,7 +1109,7 @@ export function DashboardGenerator() {
           ? schema.columns
               .filter((column) => Boolean(column && typeof column === 'object'))
               .map((column) => {
-                const next = column as Record<string, unknown>;
+                const next = column as unknown as Record<string, unknown>;
                 const columnType = String(next.type ?? 'unknown');
                 return {
                   name: String(next.name ?? ''),
