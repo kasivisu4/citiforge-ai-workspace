@@ -76,6 +76,7 @@ class DashboardQueryRequest(BaseModel):
     widgetType: str
     prompt: str = ""
     filters: Optional[Dict[str, Any]] = None
+    xAxisKey: Optional[str] = None
 
 
 class DashboardOptionsRequest(BaseModel):
@@ -392,7 +393,10 @@ def get_dashboard_column_options(rows: List[Dict[str, Any]], column: str) -> Lis
 
 
 def build_dashboard_response(
-    widget_type: str, rows: List[Dict[str, Any]], prompt: str
+    widget_type: str,
+    rows: List[Dict[str, Any]],
+    prompt: str,
+    x_axis_key: Optional[str] = None,
 ) -> Any:
     prompt_lower = (prompt or "").lower()
     if widget_type == "filter-range":
@@ -403,16 +407,18 @@ def build_dashboard_response(
 
     if widget_type == "pie":
         grouped: Dict[str, int] = {}
-        group_column = "industries"
-        if rows:
-            sample = rows[0]
-            string_columns = [
-                key
-                for key, value in sample.items()
-                if isinstance(value, str) and key not in {"name"}
-            ]
-            if string_columns:
-                group_column = string_columns[0]
+        # Use caller-supplied key first, then auto-detect from first string column
+        group_column = x_axis_key or "industries"
+        if not x_axis_key:
+            if rows:
+                sample = rows[0]
+                string_columns = [
+                    key
+                    for key, value in sample.items()
+                    if isinstance(value, str) and key not in {"name"}
+                ]
+                if string_columns:
+                    group_column = string_columns[0]
 
         for row in rows:
             group_value = str(row.get(group_column) or "Unknown")
@@ -481,7 +487,9 @@ async def get_dashboard_schema(source: Optional[str] = None):
 async def query_dashboard_data(payload: DashboardQueryRequest):
     source_record = get_dashboard_source(payload.source)
     rows = apply_dashboard_filters(source_record["rows"], payload.filters or {})
-    result = build_dashboard_response(payload.widgetType, rows, payload.prompt)
+    result = build_dashboard_response(
+        payload.widgetType, rows, payload.prompt, payload.xAxisKey
+    )
     return {
         "source": payload.source,
         "widgetType": payload.widgetType,

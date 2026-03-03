@@ -26,12 +26,22 @@ import {
 import {
   Plus, GripVertical, Trash2, Edit3, Check, X, BarChart3,
   TrendingUp, Filter, LayoutGrid, LayoutList, Sliders, Loader2,
-  PieChart as PieIcon, Activity, Bot,
+  PieChart as PieIcon, Activity, Bot, Sparkles, MessageSquare,
+  ChevronDown, ChevronUp, Copy, Send, User, MessageCircle,
 } from 'lucide-react';
+import { ChartEditDialog, defaultChartConfig } from './ChartEditDialog';
+import type { ChartConfig, EditableWidget } from './ChartEditDialog';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 type ChartType = 'bar' | 'area' | 'line' | 'pie' | 'heatmap' | 'filter-select' | 'filter-range' | 'kpi';
+
+export interface WidgetComment {
+  id: string;
+  text: string;
+  author: string;
+  timestamp: string;
+}
 
 interface DashboardWidget {
   id: string;
@@ -43,6 +53,16 @@ interface DashboardWidget {
   span: 1 | 2 | 3; // grid columns
   loading: boolean;
   filterKey?: string; // cross-filter key
+  config: ChartConfig;
+  aiInsight?: string;
+  comments: WidgetComment[];
+}
+
+export interface DashboardComment {
+  id: string;
+  text: string;
+  author: string;
+  timestamp: string;
 }
 
 interface ActiveFilter {
@@ -91,6 +111,7 @@ interface DashboardPromptBundle {
     prompt: string;
     span: 1 | 2 | 3;
     filterKey?: string;
+    config?: ChartConfig;
   }>;
 }
 
@@ -110,6 +131,7 @@ function bundleWidgetsForPrompt(widgets: DashboardWidget[], activeFilters: Activ
       prompt: widget.prompt,
       span: widget.span,
       filterKey: widget.filterKey,
+      config: widget.config,
     })),
   };
 }
@@ -124,6 +146,40 @@ const COLORS = [
   'hsl(270 60% 60%)',
   'hsl(160 60% 45%)',
 ];
+
+// ─── AI Insight Generator ─────────────────────────────────────────────────────
+
+function generateAIInsight(widget: DashboardWidget): string {
+  const p = widget.prompt.toLowerCase();
+  const t = widget.type;
+
+  if (t === 'kpi') {
+    return 'This KPI reflects the current headline metric. Compare against historical benchmarks to assess performance trajectory and identify whether the trend is accelerating or decelerating.';
+  }
+  if (t === 'pie') {
+    const data = widget.data;
+    if (data.length > 0) {
+      const top = data.reduce((a: any, b: any) => (a.value > b.value ? a : b), data[0]);
+      return `The largest segment is "${top?.name}" at approximately ${((top?.value / data.reduce((s: number, d: any) => s + d.value, 0)) * 100).toFixed(0)}% of the total distribution. Review whether this concentration aligns with strategic targets or indicates overexposure risk.`;
+    }
+    return 'The distribution shows relative proportions across categories. Consider whether minority segments represent growth opportunities or noise in your data.';
+  }
+  if (t === 'bar') {
+    if (p.includes('risk')) return 'Risk levels show variation across categories. Peaks may indicate high-exposure segments requiring mitigation. Cross-reference with compliance thresholds to prioritize remediation.';
+    if (p.includes('revenue') || p.includes('return')) return 'Revenue distribution indicates which segments drive the most value. Focus on high-performing categories for scale while evaluating underperformers for improvement or divestment.';
+    return 'Comparative analysis reveals performance differences across dimensions. Identify outliers — both positive and negative — as they tend to conceal actionable insights for strategic decisions.';
+  }
+  if (t === 'area' || t === 'line') {
+    if (p.includes('trend') || p.includes('month') || p.includes('time')) {
+      return 'The trend line shows a directional pattern over time. Look for inflection points where growth rate changed significantly — these typically correspond to external market events or internal strategy shifts worth investigating.';
+    }
+    return 'The time-series data reveals longitudinal patterns. Seasonality effects, if present, should be isolated to surface the underlying business trend for more accurate forecasting.';
+  }
+  if (t === 'heatmap') {
+    return 'The heatmap surfaces intensity patterns across two dimensions. High-intensity clusters (darker cells) indicate concentration zones — these warrant deeper investigation to understand root causes and business implications.';
+  }
+  return 'Analyze this visualization in context with other dashboard components. Cross-filtering across multiple charts will help surface correlations and causal relationships in your data.';
+}
 
 function generateMockData(prompt: string, type: ChartType): any[] {
   const lower = prompt.toLowerCase();
@@ -254,6 +310,8 @@ function ChartContent({
   dataSchema: DashboardDataSchema;
   onApplyFilter: (key: string, value: string | number) => void;
 }) {
+  const cfg = widget.config;
+
   const filtered = widget.data.filter((row: any) => {
     for (const f of activeFilters) {
       if (f.value === null || f.value === 'All') continue;
@@ -263,6 +321,13 @@ function ChartContent({
   });
 
   const data = filtered.length > 0 ? filtered : widget.data;
+
+  const handleChartClick = (evt: any) => {
+    const payload = extractChartRow(evt);
+    if (!payload || typeof payload !== 'object') return;
+    const filter = resolveChartFilter(payload as Record<string, unknown>, dataSchema);
+    if (filter) onApplyFilter(filter.key, filter.value);
+  };
 
   if (widget.type === 'kpi') {
     const d = widget.data[0];
@@ -275,73 +340,59 @@ function ChartContent({
   }
 
   if (widget.type === 'bar') {
-    const handleChartClick = (evt: any) => {
-      const payload = extractChartRow(evt);
-      if (!payload || typeof payload !== 'object') return;
-      const filter = resolveChartFilter(payload as Record<string, unknown>, dataSchema);
-      if (filter) onApplyFilter(filter.key, filter.value);
-    };
-
     return (
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} onClick={handleChartClick}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-          <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-          <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 11 }} />
-          <Bar dataKey="value" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} onClick={handleChartClick} />
-          <Bar dataKey="prev" fill="hsl(var(--secondary))" radius={[4, 4, 0, 0]} opacity={0.6} onClick={handleChartClick} />
+        <BarChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: cfg.xAxisLabel ? 16 : 0 }} onClick={handleChartClick}>
+          {cfg.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />}
+          <XAxis dataKey={cfg.xAxisKey} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={cfg.xAxisLabel ? { value: cfg.xAxisLabel, position: 'insideBottom', offset: -8, fontSize: 10 } : undefined} />
+          <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={cfg.yAxisLabel ? { value: cfg.yAxisLabel, angle: -90, position: 'insideLeft', fontSize: 10 } : undefined} />
+          {cfg.showTooltip && <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 11 }} />}
+          {cfg.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+          {cfg.yKeys.map((yk) => (
+            <Bar key={yk.key} dataKey={yk.key} name={yk.label} fill={yk.color} radius={[cfg.barRadius, cfg.barRadius, 0, 0]} onClick={handleChartClick} />
+          ))}
         </BarChart>
       </ResponsiveContainer>
     );
   }
 
   if (widget.type === 'area') {
-    const handleChartClick = (evt: any) => {
-      const payload = extractChartRow(evt);
-      if (!payload || typeof payload !== 'object') return;
-      const filter = resolveChartFilter(payload as Record<string, unknown>, dataSchema);
-      if (filter) onApplyFilter(filter.key, filter.value);
-    };
-
     return (
       <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} onClick={handleChartClick}>
+        <AreaChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: cfg.xAxisLabel ? 16 : 0 }} onClick={handleChartClick}>
           <defs>
-            <linearGradient id={`grad-${widget.id}`} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.25} />
-              <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-            </linearGradient>
+            {cfg.yKeys.map((yk, i) => (
+              <linearGradient key={yk.key} id={`grad-${widget.id}-${i}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={yk.color} stopOpacity={0.25} />
+                <stop offset="95%" stopColor={yk.color} stopOpacity={0} />
+              </linearGradient>
+            ))}
           </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-          <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-          <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 11 }} />
-          <Area type="monotone" dataKey="prev" stroke="hsl(var(--border))" fill="transparent" strokeDasharray="4 4" strokeWidth={1.5} onClick={handleChartClick} />
-          <Area type="monotone" dataKey="value" stroke="hsl(var(--primary))" fill={`url(#grad-${widget.id})`} strokeWidth={2} onClick={handleChartClick} />
+          {cfg.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />}
+          <XAxis dataKey={cfg.xAxisKey} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={cfg.xAxisLabel ? { value: cfg.xAxisLabel, position: 'insideBottom', offset: -8, fontSize: 10 } : undefined} />
+          <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={cfg.yAxisLabel ? { value: cfg.yAxisLabel, angle: -90, position: 'insideLeft', fontSize: 10 } : undefined} />
+          {cfg.showTooltip && <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 11 }} />}
+          {cfg.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+          {cfg.yKeys.map((yk, i) => (
+            <Area key={yk.key} type={cfg.smooth ? 'monotone' : 'linear'} dataKey={yk.key} name={yk.label} stroke={yk.color} fill={`url(#grad-${widget.id}-${i})`} strokeWidth={cfg.strokeWidth} strokeDasharray={cfg.dotted ? '4 4' : undefined} dot={{ r: 2 }} onClick={handleChartClick} />
+          ))}
         </AreaChart>
       </ResponsiveContainer>
     );
   }
 
   if (widget.type === 'line') {
-    const handleChartClick = (evt: any) => {
-      const payload = extractChartRow(evt);
-      if (!payload || typeof payload !== 'object') return;
-      const filter = resolveChartFilter(payload as Record<string, unknown>, dataSchema);
-      if (filter) onApplyFilter(filter.key, filter.value);
-    };
-
     return (
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: 0 }} onClick={handleChartClick}>
-          <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-          <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-          <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
-          <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 11 }} />
-          <Legend wrapperStyle={{ fontSize: 10 }} />
-          <Line type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 2 }} onClick={handleChartClick} />
-          <Line type="monotone" dataKey="prev" stroke="hsl(var(--secondary))" strokeWidth={1.5} dot={{ r: 2 }} strokeDasharray="4 4" onClick={handleChartClick} />
+        <LineChart data={data} margin={{ top: 4, right: 8, left: -16, bottom: cfg.xAxisLabel ? 16 : 0 }} onClick={handleChartClick}>
+          {cfg.showGrid && <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />}
+          <XAxis dataKey={cfg.xAxisKey} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={cfg.xAxisLabel ? { value: cfg.xAxisLabel, position: 'insideBottom', offset: -8, fontSize: 10 } : undefined} />
+          <YAxis tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} label={cfg.yAxisLabel ? { value: cfg.yAxisLabel, angle: -90, position: 'insideLeft', fontSize: 10 } : undefined} />
+          {cfg.showTooltip && <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 11 }} />}
+          {cfg.showLegend && <Legend wrapperStyle={{ fontSize: 10 }} />}
+          {cfg.yKeys.map((yk) => (
+            <Line key={yk.key} type={cfg.smooth ? 'monotone' : 'linear'} dataKey={yk.key} name={yk.label} stroke={yk.color} strokeWidth={cfg.strokeWidth} dot={{ r: 2 }} onClick={handleChartClick} />
+          ))}
         </LineChart>
       </ResponsiveContainer>
     );
@@ -358,12 +409,24 @@ function ChartContent({
     return (
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
-          <Pie data={widget.data} cx="50%" cy="50%" innerRadius="40%" outerRadius="70%" paddingAngle={3} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`} labelLine={false} onClick={handlePieClick}>
-            {widget.data.map((_: any, i: number) => (
-              <Cell key={i} fill={COLORS[i % COLORS.length]} />
-            ))}
+          <Pie
+            data={widget.data}
+            cx="50%"
+            cy="50%"
+            innerRadius={`${cfg.innerRadius}%`}
+            outerRadius={`${cfg.outerRadius}%`}
+            paddingAngle={3}
+            dataKey="value"
+            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+            labelLine={false}
+            onClick={handlePieClick}
+          >
+            {widget.data.map((_: any, i: number) => {
+              const color = cfg.yKeys[i % cfg.yKeys.length]?.color || COLORS[i % COLORS.length];
+              return <Cell key={i} fill={color} />;
+            })}
           </Pie>
-          <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 11 }} />
+          {cfg.showTooltip && <Tooltip contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: 11 }} />}
         </PieChart>
       </ResponsiveContainer>
     );
@@ -371,15 +434,12 @@ function ChartContent({
 
   if (widget.type === 'heatmap') {
     const points = data.filter((row: any) => row && typeof row === 'object');
-    const metrics = [
-      { key: 'value', label: 'Value' },
-      { key: 'prev', label: 'Prev' },
-    ];
+    const metrics = cfg.yKeys.length > 0
+      ? cfg.yKeys.map((yk) => ({ key: yk.key, label: yk.label }))
+      : [{ key: 'value', label: 'Value' }, { key: 'prev', label: 'Prev' }];
 
     const values = points.flatMap((row: any) =>
-      metrics
-        .map((metric) => Number(row?.[metric.key]))
-        .filter((value) => Number.isFinite(value))
+      metrics.map((metric) => Number(row?.[metric.key])).filter((value) => Number.isFinite(value))
     );
 
     const min = values.length ? Math.min(...values) : 0;
@@ -415,9 +475,7 @@ function ChartContent({
                   return (
                     <td key={`${metric.key}-${index}`}>
                       <button
-                        onClick={() => {
-                          if (filter) onApplyFilter(filter.key, filter.value);
-                        }}
+                        onClick={() => { if (filter) onApplyFilter(filter.key, filter.value); }}
                         className="w-full rounded px-1 py-2 border border-border text-foreground hover:border-primary/60 transition-colors"
                         style={{ backgroundColor: `hsl(var(--primary) / ${alpha})` }}
                       >
@@ -668,6 +726,8 @@ function SortableWidget({
   onUpdateTitle,
   onUpdateFilterKey,
   onFilter,
+  onSaveConfig,
+  onAddComment,
 }: {
   widget: DashboardWidget;
   activeFilters: ActiveFilter[];
@@ -679,6 +739,8 @@ function SortableWidget({
   onUpdateTitle: (id: string, title: string) => void;
   onUpdateFilterKey: (id: string, key: string) => void;
   onFilter: (key: string, value: any) => void;
+  onSaveConfig: (id: string, updates: Partial<EditableWidget> & { config: ChartConfig }) => void;
+  onAddComment: (widgetId: string, text: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
 
@@ -688,22 +750,30 @@ function SortableWidget({
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const [editingPrompt, setEditingPrompt] = useState(false);
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [draftTitle, setDraftTitle] = useState(widget.title);
-  const [draftPrompt, setDraftPrompt] = useState(widget.prompt);
-  const titleRef = useRef<HTMLInputElement>(null);
-  const promptRef = useRef<HTMLInputElement>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [showInsight, setShowInsight] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [commentDraft, setCommentDraft] = useState('');
+  const commentInputRef = useRef<HTMLInputElement>(null);
   const isFilter = widget.type.startsWith('filter');
   const currentFilter = activeFilters.find((f) => f.key === (widget.filterKey || widget.id));
 
   const spanClass = widget.span === 3 ? 'col-span-3' : widget.span === 2 ? 'col-span-2' : 'col-span-1';
 
+  const insight = widget.aiInsight ?? generateAIInsight(widget);
+
+  const submitComment = () => {
+    const text = commentDraft.trim();
+    if (!text) return;
+    onAddComment(widget.id, text);
+    setCommentDraft('');
+  };
+
   return (
     <motion.div
       ref={setNodeRef}
       style={style}
-      layout
+      layout="position"
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
@@ -729,26 +799,15 @@ function SortableWidget({
           {widget.span === 1 ? <LayoutList size={13} /> : <LayoutGrid size={13} />}
         </button>
 
-        {!isFilter && (
-          <button
-            onClick={() => { setEditingTitle(true); setTimeout(() => titleRef.current?.focus(), 50); }}
-            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary transition-all"
-            title="Edit title"
-          >
-            <Edit3 size={13} />
-          </button>
-        )}
-
-        {/* Edit prompt */}
-        {!isFilter && (
-          <button
-            onClick={() => { setEditingPrompt(true); setTimeout(() => promptRef.current?.focus(), 50); }}
-            className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary transition-all"
-            title="Update chart via prompt"
-          >
-            <Bot size={13} />
-          </button>
-        )}
+        {/* Edit button – opens full dialog */}
+        <button
+          onClick={() => setEditDialogOpen(true)}
+          className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 text-[10px] font-medium transition-all"
+          title="Edit chart options"
+        >
+          <Edit3 size={11} />
+          Edit
+        </button>
 
         {/* Delete */}
         <button
@@ -760,76 +819,8 @@ function SortableWidget({
         </button>
       </div>
 
-      {/* Inline prompt editor */}
-      <AnimatePresence>
-        {editingTitle && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden border-b border-border/40 bg-muted/30 px-4 py-2"
-          >
-            <div className="flex items-center gap-2">
-              <Edit3 size={12} className="text-muted-foreground shrink-0" />
-              <input
-                ref={titleRef}
-                value={draftTitle}
-                onChange={(e) => setDraftTitle(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { onUpdateTitle(widget.id, draftTitle); setEditingTitle(false); }
-                  if (e.key === 'Escape') setEditingTitle(false);
-                }}
-                placeholder="Widget title"
-                className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-              />
-              <button
-                onClick={() => { onUpdateTitle(widget.id, draftTitle); setEditingTitle(false); }}
-                className="text-primary hover:text-primary/80 shrink-0"
-              >
-                <Check size={13} />
-              </button>
-              <button onClick={() => setEditingTitle(false)} className="text-muted-foreground hover:text-foreground shrink-0">
-                <X size={13} />
-              </button>
-            </div>
-          </motion.div>
-        )}
-        {editingPrompt && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="overflow-hidden border-b border-border/40 bg-muted/30 px-4 py-2"
-          >
-            <div className="flex items-center gap-2">
-              <Bot size={12} className="text-muted-foreground shrink-0" />
-              <input
-                ref={promptRef}
-                value={draftPrompt}
-                onChange={(e) => setDraftPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') { onUpdatePrompt(widget.id, draftPrompt); setEditingPrompt(false); }
-                  if (e.key === 'Escape') setEditingPrompt(false);
-                }}
-                placeholder="Describe what you want to visualize…"
-                className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-              />
-              <button
-                onClick={() => { onUpdatePrompt(widget.id, draftPrompt); setEditingPrompt(false); }}
-                className="text-primary hover:text-primary/80 shrink-0"
-              >
-                <Check size={13} />
-              </button>
-              <button onClick={() => setEditingPrompt(false)} className="text-muted-foreground hover:text-foreground shrink-0">
-                <X size={13} />
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* Content */}
-      <div className="flex-1 p-4 min-h-[160px]">
+      <div className="h-[200px] shrink-0 p-4">
         {widget.loading ? (
           <div className="flex items-center justify-center h-full gap-2 text-muted-foreground">
             <Loader2 size={18} className="animate-spin" />
@@ -849,11 +840,124 @@ function SortableWidget({
           <ChartContent widget={widget} activeFilters={activeFilters} dataSchema={dataSchema} onApplyFilter={onFilter} />
         )}
       </div>
+
+      {/* Bottom action bar */}
+      {!isFilter && (
+        <div className="border-t border-border/40 px-4 py-1.5 flex items-center gap-3">
+          {/* AI Insight toggle */}
+          <button
+            onClick={() => setShowInsight((v) => !v)}
+            className={`flex items-center gap-1.5 text-[10px] font-medium transition-colors ${showInsight ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <Sparkles size={11} />
+            AI Insight
+            {showInsight ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </button>
+          <span className="w-px h-3 bg-border/60" />
+          {/* Comments toggle */}
+          <button
+            onClick={() => { setShowComments((v) => !v); setTimeout(() => commentInputRef.current?.focus(), 100); }}
+            className={`flex items-center gap-1.5 text-[10px] font-medium transition-colors ${showComments ? 'text-primary' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            <MessageCircle size={11} />
+            {widget.comments.length > 0 ? `${widget.comments.length} Comment${widget.comments.length > 1 ? 's' : ''}` : 'Add Comment'}
+            {showComments ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+          </button>
+        </div>
+      )}
+
+      {/* AI Insight panel */}
+      <AnimatePresence>
+        {showInsight && !isFilter && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden border-t border-border/40"
+          >
+            <div className="px-4 py-3 bg-gradient-to-br from-primary/5 to-primary/0">
+              <div className="flex items-start gap-2">
+                <div className="w-5 h-5 rounded-full bg-primary/15 flex items-center justify-center shrink-0 mt-0.5">
+                  <Sparkles size={10} className="text-primary" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold text-primary uppercase tracking-wider mb-1">AI Insight</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">{insight}</p>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Comments panel */}
+      <AnimatePresence>
+        {showComments && !isFilter && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="overflow-hidden border-t border-border/40"
+          >
+            <div className="px-4 py-3 space-y-2 max-h-48 overflow-y-auto">
+              {widget.comments.length === 0 && (
+                <p className="text-[10px] text-muted-foreground py-1">No comments yet. Be the first to annotate this chart.</p>
+              )}
+              {widget.comments.map((c) => (
+                <div key={c.id} className="flex items-start gap-2">
+                  <div className="w-5 h-5 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5">
+                    <User size={9} className="text-muted-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5">
+                      <span className="text-[10px] font-medium text-foreground">{c.author}</span>
+                      <span className="text-[9px] text-muted-foreground">{new Date(c.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed">{c.text}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="px-4 pb-3 border-t border-border/40 pt-2">
+              <div className="flex items-center gap-2 bg-muted/40 rounded-lg px-3 py-1.5 border border-border/50 focus-within:border-primary/50 transition-colors">
+                <input
+                  ref={commentInputRef}
+                  value={commentDraft}
+                  onChange={(e) => setCommentDraft(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitComment(); } }}
+                  placeholder="Add a comment…"
+                  className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+                />
+                <button
+                  onClick={submitComment}
+                  disabled={!commentDraft.trim()}
+                  className="text-primary hover:text-primary/80 disabled:opacity-30 transition-all"
+                >
+                  <Send size={12} />
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Chart Edit Dialog */}
+      {editDialogOpen && (
+        <ChartEditDialog
+          widget={widget as unknown as EditableWidget}
+          open={editDialogOpen}
+          onClose={() => setEditDialogOpen(false)}
+          onSave={(updates) => {
+            onSaveConfig(widget.id, updates);
+          }}
+        />
+      )}
     </motion.div>
   );
 }
 
 // ─── Add Widget Panel ─────────────────────────────────────────────────────────
+
 
 function AddWidgetPanel({
   onAdd,
@@ -1058,6 +1162,9 @@ function createWidget(type: ChartType, title: string, prompt: string, sourceId: 
     span: type === 'kpi' ? 1 : type.startsWith('filter') ? 1 : 2,
     loading: true,
     filterKey: type.startsWith('filter') ? (normalizedPrompt || 'name') : undefined,
+    config: defaultChartConfig(type),
+    aiInsight: undefined,
+    comments: [],
   };
 }
 
@@ -1070,6 +1177,9 @@ export function DashboardGenerator() {
   const [showAddPanel, setShowAddPanel] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
+  const [dashboardComments, setDashboardComments] = useState<DashboardComment[]>([]);
+  const [showDashboardComments, setShowDashboardComments] = useState(false);
+  const [dashboardCommentDraft, setDashboardCommentDraft] = useState('');
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -1139,7 +1249,7 @@ export function DashboardGenerator() {
   }, [sourceId]);
 
   const fetchChartData = useCallback(
-    async (widgetId: string, widgetSourceId: string, type: ChartType, prompt: string, filters: ActiveFilter[]) => {
+    async (widgetId: string, widgetSourceId: string, type: ChartType, prompt: string, filters: ActiveFilter[], xAxisKey?: string) => {
       const filtersPayload = filters.reduce<Record<string, string | number | [number, number] | null>>((acc, filter) => {
         acc[filter.key] = filter.value;
         return acc;
@@ -1154,6 +1264,7 @@ export function DashboardGenerator() {
             widgetType: type,
             prompt,
             filters: filtersPayload,
+            xAxisKey: xAxisKey ?? undefined,
           }),
         });
         if (!res.ok) throw new Error('Query failed');
@@ -1185,7 +1296,7 @@ export function DashboardGenerator() {
     if (type === 'filter-select') {
       setWidgets((prev) => prev.map((w) => (w.id === widget.id ? { ...w, loading: false, data: [] } : w)));
     } else {
-      fetchChartData(widget.id, widget.sourceId, type, widget.prompt, activeFilters);
+      fetchChartData(widget.id, widget.sourceId, type, widget.prompt, activeFilters, widget.config?.xAxisKey);
     }
     setShowAddPanel(false);
   }, [fetchChartData, activeFilters, sourceId]);
@@ -1205,7 +1316,7 @@ export function DashboardGenerator() {
     );
     const widget = widgets.find((w) => w.id === id);
     if (widget && !widget.type.startsWith('filter')) {
-      fetchChartData(id, widget.sourceId, widget.type, nextPrompt || widget.prompt, activeFilters);
+      fetchChartData(id, widget.sourceId, widget.type, nextPrompt || widget.prompt, activeFilters, widget.config?.xAxisKey);
     }
   }, [widgets, fetchChartData, activeFilters]);
 
@@ -1271,6 +1382,63 @@ export function DashboardGenerator() {
     });
   }, []);
 
+  const handleSaveConfig = useCallback((id: string, updates: Partial<EditableWidget> & { config: ChartConfig }) => {
+    setWidgets((prev) =>
+      prev.map((w) => {
+        if (w.id !== id) return w;
+        const typeChanged = updates.type && updates.type !== w.type;
+        const promptChanged = updates.prompt && updates.prompt !== w.prompt;
+        return {
+          ...w,
+          title: updates.title ?? w.title,
+          prompt: updates.prompt ?? w.prompt,
+          type: (updates.type as ChartType) ?? w.type,
+          span: updates.span ?? w.span,
+          config: updates.config,
+          // If prompt or type changed, reload data
+          loading: typeChanged || promptChanged ? true : w.loading,
+          data: typeChanged || promptChanged ? [] : w.data,
+        };
+      })
+    );
+    // Reload data if type or prompt changed
+    const widget = widgets.find((w) => w.id === id);
+    if (widget) {
+      const typeChanged = updates.type && updates.type !== widget.type;
+      const promptChanged = updates.prompt && updates.prompt !== widget.prompt;
+      if ((typeChanged || promptChanged) && !String(updates.type ?? widget.type).startsWith('filter')) {
+        fetchChartData(id, widget.sourceId, (updates.type as ChartType) ?? widget.type, updates.prompt ?? widget.prompt, activeFilters, updates.config?.xAxisKey ?? widget.config?.xAxisKey);
+      }
+    }
+  }, [widgets, fetchChartData, activeFilters]);
+
+  const handleAddComment = useCallback((widgetId: string, text: string) => {
+    const comment: WidgetComment = {
+      id: `c-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      text,
+      author: 'You',
+      timestamp: new Date().toISOString(),
+    };
+    setWidgets((prev) =>
+      prev.map((w) =>
+        w.id === widgetId ? { ...w, comments: [...w.comments, comment] } : w
+      )
+    );
+  }, []);
+
+  const handleAddDashboardComment = useCallback(() => {
+    const text = dashboardCommentDraft.trim();
+    if (!text) return;
+    const comment: DashboardComment = {
+      id: `dc-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+      text,
+      author: 'You',
+      timestamp: new Date().toISOString(),
+    };
+    setDashboardComments((prev) => [...prev, comment]);
+    setDashboardCommentDraft('');
+  }, [dashboardCommentDraft]);
+
   const handleDragStart = (event: DragStartEvent) => setActiveId(event.active.id as string);
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -1299,7 +1467,7 @@ export function DashboardGenerator() {
     widgets
       .filter((widget) => !widget.type.startsWith('filter'))
       .forEach((widget) => {
-        fetchChartData(widget.id, widget.sourceId, widget.type, widget.prompt, activeFilters);
+        fetchChartData(widget.id, widget.sourceId, widget.type, widget.prompt, activeFilters, widget.config?.xAxisKey);
       });
   }, [activeFilters]);
 
@@ -1366,12 +1534,23 @@ export function DashboardGenerator() {
           showPanel={showAddPanel}
         />
         {widgets.length > 0 && (
-          <div className="mb-4">
+          <div className="mb-4 flex items-center gap-2 flex-wrap">
             <button
               onClick={() => navigator.clipboard.writeText(JSON.stringify(dashboardBundle, null, 2)).catch(() => {})}
-              className="px-3 py-1.5 text-xs rounded-lg bg-card border border-border text-foreground hover:border-primary/50 transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-card border border-border text-foreground hover:border-primary/50 transition-all"
             >
-              Bundle Prompts (Copy JSON)
+              <Copy size={12} />
+              Export JSON
+            </button>
+            <button
+              onClick={() => setShowDashboardComments((v) => !v)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-all ${showDashboardComments ? 'bg-primary/10 border-primary text-primary' : 'bg-card border-border text-foreground hover:border-primary/50'}`}
+            >
+              <MessageSquare size={12} />
+              Dashboard Notes
+              {dashboardComments.length > 0 && (
+                <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[9px] font-medium">{dashboardComments.length}</span>
+              )}
             </button>
           </div>
         )}
@@ -1416,7 +1595,7 @@ export function DashboardGenerator() {
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-3 gap-4 auto-rows-[220px]">
+              <div className="grid grid-cols-3 gap-5 auto-rows-auto">
                 <AnimatePresence>
                   {widgets.map((widget) => (
                     <SortableWidget
@@ -1431,6 +1610,8 @@ export function DashboardGenerator() {
                       onUpdateTitle={handleUpdateTitle}
                       onUpdateFilterKey={handleUpdateFilterKey}
                       onFilter={handleFilter}
+                      onSaveConfig={handleSaveConfig}
+                      onAddComment={handleAddComment}
                     />
                   ))}
                 </AnimatePresence>
@@ -1447,6 +1628,72 @@ export function DashboardGenerator() {
             </DragOverlay>
           </DndContext>
         )}
+
+        {/* Dashboard-level comments panel */}
+        <AnimatePresence>
+          {showDashboardComments && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              className="mt-6 citi-card p-5"
+            >
+              <div className="flex items-center gap-2 mb-4">
+                <MessageSquare size={15} className="text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">Dashboard Notes</h3>
+                <span className="ml-auto text-xs text-muted-foreground">{dashboardComments.length} note{dashboardComments.length !== 1 ? 's' : ''}</span>
+              </div>
+
+              {/* Existing comments */}
+              <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
+                {dashboardComments.length === 0 && (
+                  <p className="text-xs text-muted-foreground py-4 text-center">No notes yet. Add context, decisions, or observations about this dashboard.</p>
+                )}
+                {dashboardComments.map((c) => (
+                  <div key={c.id} className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 border border-border/50">
+                    <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                      <User size={12} className="text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <span className="text-xs font-medium text-foreground">{c.author}</span>
+                        <span className="text-[10px] text-muted-foreground">{new Date(c.timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground leading-relaxed">{c.text}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Add note input */}
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
+                  <User size={12} className="text-muted-foreground" />
+                </div>
+                <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden focus-within:border-primary/50 transition-colors">
+                  <textarea
+                    value={dashboardCommentDraft}
+                    onChange={(e) => setDashboardCommentDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) handleAddDashboardComment(); }}
+                    placeholder="Add a note, observation, or decision context… (⌘+Enter to submit)"
+                    rows={2}
+                    className="w-full bg-transparent px-3 pt-3 pb-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
+                  />
+                  <div className="flex justify-end px-2 pb-2">
+                    <button
+                      onClick={handleAddDashboardComment}
+                      disabled={!dashboardCommentDraft.trim()}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground rounded-lg text-xs font-medium hover:opacity-90 disabled:opacity-40 transition-all"
+                    >
+                      <Send size={11} />
+                      Add Note
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );
