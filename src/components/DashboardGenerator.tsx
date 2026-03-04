@@ -29,7 +29,7 @@ import {
   PieChart as PieIcon, Activity, Bot, Sparkles, MessageSquare,
   ChevronDown, ChevronUp, Copy, Send, User, MessageCircle,
 } from 'lucide-react';
-import { ChartEditDialog, defaultChartConfig } from './ChartEditDialog';
+import { ChartEditDialog, defaultChartConfig, applyPromptToConfig } from './ChartEditDialog';
 import type { ChartConfig, EditableWidget } from './ChartEditDialog';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -62,6 +62,15 @@ export interface DashboardComment {
   id: string;
   text: string;
   author: string;
+  timestamp: string;
+}
+
+interface AiChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  text: string;
+  actionsAdded?: number;
+  error?: boolean;
   timestamp: string;
 }
 
@@ -728,6 +737,7 @@ function SortableWidget({
   onFilter,
   onSaveConfig,
   onAddComment,
+  onFetchPreview,
 }: {
   widget: DashboardWidget;
   activeFilters: ActiveFilter[];
@@ -741,6 +751,7 @@ function SortableWidget({
   onFilter: (key: string, value: any) => void;
   onSaveConfig: (id: string, updates: Partial<EditableWidget> & { config: ChartConfig }) => void;
   onAddComment: (widgetId: string, text: string) => void;
+  onFetchPreview?: (xAxisKey: string, widgetType: ChartType, prompt: string) => Promise<any[]>;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: widget.id });
 
@@ -950,16 +961,158 @@ function SortableWidget({
           onSave={(updates) => {
             onSaveConfig(widget.id, updates);
           }}
+          schemaKeys={dataSchema.columns.map((c) => c.name)}
+          onFetchPreview={onFetchPreview}
         />
       )}
     </motion.div>
   );
 }
 
-// ─── Add Widget Panel ─────────────────────────────────────────────────────────
+// ─── Dashboard Command Bar (unified AI prompt + quick-add chips) ─────────────
 
+const QUICK_ADD_DEFS: {
+  type: ChartType;
+  label: string;
+  icon: typeof BarChart3;
+  defaultTitle: string;
+  defaultPrompt: string;
+}[] = [
+  { type: 'bar',           label: 'Bar',     icon: BarChart3,  defaultTitle: 'Bar Chart',         defaultPrompt: 'Compare values across categories'       },
+  { type: 'area',          label: 'Area',    icon: TrendingUp, defaultTitle: 'Area Trend',         defaultPrompt: 'Show trend over time'                    },
+  { type: 'line',          label: 'Line',    icon: Activity,   defaultTitle: 'Line Chart',         defaultPrompt: 'Multi-series time series'                },
+  { type: 'pie',           label: 'Pie',     icon: PieIcon,    defaultTitle: 'Distribution',       defaultPrompt: 'Distribution by category'                },
+  { type: 'kpi',           label: 'KPI',     icon: Sliders,    defaultTitle: 'Key Metric',         defaultPrompt: 'Show the headline KPI value and change'  },
+  { type: 'heatmap',       label: 'Heatmap', icon: LayoutGrid, defaultTitle: 'Heatmap',            defaultPrompt: 'Color intensity across time and metrics' },
+  { type: 'filter-select', label: 'Filter',  icon: Filter,     defaultTitle: 'Filter: Industries', defaultPrompt: 'industries'                              },
+];
 
-function AddWidgetPanel({
+function DashboardCommandBar({
+  onAiSend,
+  onQuickAdd,
+  aiLoading,
+  lastAiMessage,
+}: {
+  onAiSend: (text: string) => void;
+  onQuickAdd: (type: ChartType, title: string, prompt: string) => void;
+  aiLoading: boolean;
+  lastAiMessage: AiChatMessage | null;
+}) {
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleSend = () => {
+    const text = draft.trim();
+    if (!text || aiLoading) return;
+    setDraft('');
+    onAiSend(text);
+  };
+
+  const SUGGESTIONS = [
+    'Full trade overview with KPIs, bar chart and filters',
+    'Monthly trend area chart + industry pie chart',
+    'Heatmap of all metrics across months',
+    'Add a filter for imports/exports and KPI',
+  ];
+
+  return (
+    <div className="mb-6 space-y-2.5">
+      {/* AI prompt input */}
+      <div className="flex items-center gap-3 bg-card border border-border/60 rounded-2xl px-4 py-3 focus-within:border-primary/50 shadow-sm transition-all">
+        <div className="w-7 h-7 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+          <Sparkles size={13} className="text-primary" />
+        </div>
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
+          placeholder="Describe your dashboard… e.g. 'Add a trade trend chart and a total value KPI'"
+          className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none min-w-0"
+        />
+        {draft && (
+          <button onClick={() => setDraft('')} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
+            <X size={13} />
+          </button>
+        )}
+        <button
+          onClick={handleSend}
+          disabled={!draft.trim() || aiLoading}
+          className="flex items-center gap-1.5 px-3.5 py-2 bg-primary text-primary-foreground rounded-xl text-xs font-semibold hover:opacity-90 disabled:opacity-40 transition-all shrink-0"
+        >
+          {aiLoading
+            ? <><Loader2 size={12} className="animate-spin" />&nbsp;Building…</>
+            : <><Sparkles size={12} />&nbsp;Generate</>
+          }
+        </button>
+      </div>
+
+      {/* Status line: last AI response */}
+      <AnimatePresence mode="wait">
+        {lastAiMessage && (
+          <motion.div
+            key={lastAiMessage.id}
+            initial={{ opacity: 0, y: -4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className={`flex items-center gap-2 px-1 ${lastAiMessage.error ? 'text-destructive' : 'text-muted-foreground'}`}
+          >
+            {lastAiMessage.error
+              ? <X size={11} className="shrink-0" />
+              : <Check size={11} className="shrink-0 text-emerald-500" />
+            }
+            <p className="text-[11px] leading-relaxed truncate">{lastAiMessage.text}</p>
+            {lastAiMessage.actionsAdded !== undefined && lastAiMessage.actionsAdded > 0 && (
+              <span className="shrink-0 text-[10px] font-medium text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30 px-1.5 py-0.5 rounded-md">
+                +{lastAiMessage.actionsAdded} added
+              </span>
+            )}
+          </motion.div>
+        )}
+        {!lastAiMessage && (
+          <motion.div
+            key="suggestions"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="flex items-center gap-1.5 flex-wrap px-1"
+          >
+            <span className="text-[11px] text-muted-foreground/60">Try:</span>
+            {SUGGESTIONS.map((s) => (
+              <button
+                key={s}
+                onClick={() => { setDraft(s); setTimeout(() => inputRef.current?.focus(), 50); }}
+                className="text-[11px] text-muted-foreground hover:text-primary transition-colors underline-offset-2 hover:underline"
+              >
+                {s}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Quick-add type chips */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        <span className="text-[11px] font-medium text-muted-foreground/70 mr-0.5">Add:</span>
+        {QUICK_ADD_DEFS.map(({ type, label, icon: Icon, defaultTitle, defaultPrompt }) => (
+          <button
+            key={type}
+            onClick={() => onQuickAdd(type, defaultTitle, defaultPrompt)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-muted/40 border border-border/70 text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 transition-all"
+          >
+            <Icon size={10} />
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Dead code kept for reference – replaced by AddWidgetPanel ────────────────
+// (AddWidgetPanel removed; quick-add chips + AI prompt cover this)
+
+function _AddWidgetPanel({
   onAdd,
   onClose,
   selectableColumns,
@@ -1097,9 +1250,178 @@ function AddWidgetPanel({
   );
 }
 
-// ─── Layout row/col controls ──────────────────────────────────────────────────
+// ─── (AIChatPanel and LayoutToolbar removed — replaced by DashboardCommandBar) ─
 
-function LayoutToolbar({
+function _AIChatPanel({
+  open,
+  onClose,
+  messages,
+  loading,
+  onSend,
+}: {
+  open: boolean;
+  onClose: () => void;
+  messages: AiChatMessage[];
+  loading: boolean;
+  onSend: (text: string) => void;
+}) {
+  const [draft, setDraft] = useState('');
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (open) setTimeout(() => inputRef.current?.focus(), 100);
+  }, [open]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
+
+  const handleSend = () => {
+    const text = draft.trim();
+    if (!text || loading) return;
+    setDraft('');
+    onSend(text);
+  };
+
+  const SUGGESTIONS = [
+    'Create a full trade overview with KPIs, bar chart, and filters',
+    'Add a pie chart of industry distribution',
+    'Show monthly trade trend as area chart',
+    'Add KPI for total trade value and a heatmap',
+    'Give me a filter for region and a bar chart by country',
+  ];
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ x: '100%', opacity: 0 }}
+          animate={{ x: 0, opacity: 1 }}
+          exit={{ x: '100%', opacity: 0 }}
+          transition={{ type: 'spring', stiffness: 280, damping: 30 }}
+          className="fixed top-0 right-0 h-full w-[380px] z-50 flex flex-col shadow-2xl bg-card border-l border-border"
+        >
+          {/* Header */}
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-gradient-to-r from-primary/10 to-transparent shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-primary/15 flex items-center justify-center">
+              <Sparkles size={15} className="text-primary" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-foreground">AI Dashboard Builder</p>
+              <p className="text-[10px] text-muted-foreground truncate">Powered by LM Studio · qwen3-vl-8b</p>
+            </div>
+            <button onClick={onClose} className="text-muted-foreground hover:text-foreground transition-colors">
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+            {messages.length === 0 && (
+              <div className="space-y-3">
+                <div className="flex items-start gap-2">
+                  <div className="w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                    <Bot size={11} className="text-primary" />
+                  </div>
+                  <div className="bg-muted/50 rounded-2xl rounded-tl-sm px-3 py-2.5 max-w-[280px]">
+                    <p className="text-xs text-foreground leading-relaxed">
+                      Hi! Tell me what dashboard you'd like to build and I'll add widgets for you automatically. Try one of these:
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1.5 mt-2">
+                  {SUGGESTIONS.map((s, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { setDraft(s); setTimeout(() => inputRef.current?.focus(), 50); }}
+                      className="text-left text-[11px] text-muted-foreground hover:text-foreground px-3 py-2 rounded-xl bg-muted/40 border border-border/50 hover:border-primary/40 hover:bg-primary/5 transition-all"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {messages.map((msg) => (
+              <div key={msg.id} className={`flex items-start gap-2 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                  msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-primary/15'
+                }`}>
+                  {msg.role === 'user' ? <User size={10} className="text-primary-foreground" /> : <Bot size={10} className="text-primary" />}
+                </div>
+                <div className={`max-w-[260px] rounded-2xl px-3 py-2.5 ${
+                  msg.role === 'user'
+                    ? 'bg-primary text-primary-foreground rounded-tr-sm'
+                    : msg.error
+                    ? 'bg-destructive/10 border border-destructive/30 rounded-tl-sm'
+                    : 'bg-muted/50 rounded-tl-sm'
+                }`}>
+                  <p className={`text-xs leading-relaxed ${msg.role === 'user' ? 'text-primary-foreground' : msg.error ? 'text-destructive' : 'text-foreground'}`}>{msg.text}</p>
+                  {msg.actionsAdded !== undefined && msg.actionsAdded > 0 && (
+                    <div className="mt-1.5 flex items-center gap-1 text-[10px] text-emerald-600 font-medium">
+                      <Check size={9} />
+                      {msg.actionsAdded} widget{msg.actionsAdded !== 1 ? 's' : ''} added
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {loading && (
+              <div className="flex items-start gap-2">
+                <div className="w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
+                  <Bot size={10} className="text-primary" />
+                </div>
+                <div className="bg-muted/50 rounded-2xl rounded-tl-sm px-3 py-3">
+                  <div className="flex gap-1">
+                    {[0, 1, 2].map((i) => (
+                      <motion.span
+                        key={i}
+                        className="w-1.5 h-1.5 rounded-full bg-primary/50"
+                        animate={{ opacity: [0.3, 1, 0.3] }}
+                        transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Input */}
+          <div className="shrink-0 px-4 pb-4 pt-2 border-t border-border">
+            <div className="flex items-end gap-2 bg-muted/40 rounded-xl border border-border focus-within:border-primary/50 transition-colors px-3 py-2">
+              <textarea
+                ref={inputRef}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder="Ask me to build your dashboard…"
+                rows={2}
+                className="flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground focus:outline-none resize-none leading-relaxed"
+              />
+              <button
+                onClick={handleSend}
+                disabled={!draft.trim() || loading}
+                className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:opacity-90 disabled:opacity-30 transition-all shrink-0"
+              >
+                {loading ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+              </button>
+            </div>
+            <p className="text-[10px] text-muted-foreground mt-1.5 text-center">Enter to send · Shift+Enter for new line</p>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+// ─── Layout toolbar (unused – superseded by DashboardCommandBar) ───────────────
+
+function _LayoutToolbar({
   onAddRow,
   onAddCol,
   onTogglePanel,
@@ -1174,12 +1496,15 @@ export function DashboardGenerator() {
   const [sourceId, setSourceId] = useState('global-trade');
   const [dataSchema, setDataSchema] = useState<DashboardDataSchema>(DEFAULT_DATA_SCHEMA);
   const [schemaBySource, setSchemaBySource] = useState<Record<string, DashboardDataSchema>>({});
-  const [showAddPanel, setShowAddPanel] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeFilters, setActiveFilters] = useState<ActiveFilter[]>([]);
   const [dashboardComments, setDashboardComments] = useState<DashboardComment[]>([]);
   const [showDashboardComments, setShowDashboardComments] = useState(false);
   const [dashboardCommentDraft, setDashboardCommentDraft] = useState('');
+
+  // ── AI state ─────────────────────────────────────────────────────────────────
+  const [aiMessages, setAiMessages] = useState<AiChatMessage[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -1248,6 +1573,28 @@ export function DashboardGenerator() {
       });
   }, [sourceId]);
 
+  const queryChartData = useCallback(
+    async (widgetSourceId: string, type: ChartType, prompt: string, xAxisKey: string): Promise<any[]> => {
+      const filtersPayload = activeFilters.reduce<Record<string, any>>((acc, f) => {
+        acc[f.key] = f.value;
+        return acc;
+      }, {});
+      try {
+        const res = await fetch('http://localhost:4555/dashboard/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ source: widgetSourceId, widgetType: type, prompt, filters: filtersPayload, xAxisKey }),
+        });
+        if (!res.ok) return [];
+        const payload = await res.json();
+        return Array.isArray(payload?.data) ? payload.data : [];
+      } catch {
+        return [];
+      }
+    },
+    [activeFilters]
+  );
+
   const fetchChartData = useCallback(
     async (widgetId: string, widgetSourceId: string, type: ChartType, prompt: string, filters: ActiveFilter[], xAxisKey?: string) => {
       const filtersPayload = filters.reduce<Record<string, string | number | [number, number] | null>>((acc, filter) => {
@@ -1292,13 +1639,21 @@ export function DashboardGenerator() {
 
   const handleAddWidget = useCallback((type: ChartType, title: string, prompt: string) => {
     const widget = createWidget(type, title, prompt, sourceId);
+    // Apply prompt/title-aware config using available schema keys
+    if (!type.startsWith('filter') && type !== 'kpi') {
+      const schema = schemaBySource[sourceId] ?? dataSchema;
+      const availableKeys: string[] = schema?.columns?.map((c: { name: string }) => c.name) ?? [];
+      if (availableKeys.length > 0) {
+        const configUpdates = applyPromptToConfig(title + ' ' + prompt, availableKeys, widget.config!);
+        widget.config = { ...widget.config!, ...configUpdates };
+      }
+    }
     setWidgets((prev) => [...prev, widget]);
     if (type === 'filter-select') {
       setWidgets((prev) => prev.map((w) => (w.id === widget.id ? { ...w, loading: false, data: [] } : w)));
     } else {
       fetchChartData(widget.id, widget.sourceId, type, widget.prompt, activeFilters, widget.config?.xAxisKey);
     }
-    setShowAddPanel(false);
   }, [fetchChartData, activeFilters, sourceId]);
 
   const handleDelete = useCallback((id: string) => {
@@ -1439,6 +1794,95 @@ export function DashboardGenerator() {
     setDashboardCommentDraft('');
   }, [dashboardCommentDraft]);
 
+  const handleAiSend = useCallback(async (text: string) => {
+    const userMsg: AiChatMessage = {
+      id: `ai-u-${Date.now()}`,
+      role: 'user',
+      text,
+      timestamp: new Date().toISOString(),
+    };
+    setAiMessages((prev) => [...prev, userMsg]);
+    setAiLoading(true);
+
+    try {
+      const existingWidgets = widgets.map((w) => ({ type: w.type, title: w.title, prompt: w.prompt }));
+      const res = await fetch('http://localhost:4555/dashboard/ai-generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: text, sourceId, existingWidgets }),
+      });
+      const payload = await res.json();
+
+      if (!res.ok || payload.ok === false) {
+        setAiMessages((prev) => [
+          ...prev,
+          {
+            id: `ai-a-${Date.now()}`,
+            role: 'assistant',
+            text: payload.error ?? 'Something went wrong. Is LM Studio running at http://127.0.0.1:11434?',
+            error: true,
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+        return;
+      }
+
+      // Apply widget actions returned by the LLM
+      const actions: Array<{ type: string; widgetType: ChartType; title: string; prompt: string; span?: 1 | 2 | 3; xAxisKey?: string }> =
+        Array.isArray(payload.actions) ? payload.actions : [];
+
+      let added = 0;
+      for (const action of actions) {
+        if (action.type === 'add_widget' && action.widgetType) {
+          const widget = createWidget(
+            action.widgetType,
+            action.title ?? action.widgetType,
+            action.prompt ?? action.title ?? action.widgetType,
+            sourceId,
+          );
+          if (action.span) widget.span = action.span;
+          // Apply the xAxisKey the LLM chose — overrides the default 'name'
+          if (action.xAxisKey && widget.config) {
+            widget.config = { ...widget.config, xAxisKey: action.xAxisKey };
+          }
+          setWidgets((prev) => [...prev, widget]);
+          // Kick off data fetch (mirrors handleAddWidget behaviour)
+          if (!action.widgetType.startsWith('filter')) {
+            fetchChartData(widget.id, widget.sourceId, widget.type, widget.prompt, activeFilters, widget.config?.xAxisKey);
+          } else {
+            setWidgets((prev) => prev.map((w) => (w.id === widget.id ? { ...w, loading: false } : w)));
+          }
+          added++;
+        }
+      }
+
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          id: `ai-a-${Date.now()}`,
+          role: 'assistant',
+          text: payload.message || (added > 0 ? `Added ${added} widget${added !== 1 ? 's' : ''} to your dashboard.` : 'No widgets added.'),
+          actionsAdded: added,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Network error';
+      setAiMessages((prev) => [
+        ...prev,
+        {
+          id: `ai-a-${Date.now()}`,
+          role: 'assistant',
+          text: `Connection error: ${message}. Make sure the backend is running and LM Studio is active at http://127.0.0.1:11434.`,
+          error: true,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+    } finally {
+      setAiLoading(false);
+    }
+  }, [widgets, sourceId, activeFilters, fetchChartData]);
+
   const handleDragStart = (event: DragStartEvent) => setActiveId(event.active.id as string);
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -1453,16 +1897,6 @@ export function DashboardGenerator() {
     }
   };
 
-  const handleAddRow = () => {
-    // Add a full-width separator area hint — just adds a wide chart by default
-    handleAddWidget('area', 'Row overview', 'Trend over time for key business metrics');
-  };
-
-  const handleAddCol = () => {
-    // Add a narrow KPI
-    handleAddWidget('kpi', 'Key metric', 'Show the most important KPI value and delta');
-  };
-
   useEffect(() => {
     widgets
       .filter((widget) => !widget.type.startsWith('filter'))
@@ -1472,121 +1906,120 @@ export function DashboardGenerator() {
   }, [activeFilters]);
 
   const dashboardBundle = bundleWidgetsForPrompt(widgets, activeFilters, sourceId);
-  const selectableColumns = getSelectableColumns(dataSchema);
-  const rangeColumns = getRangeColumns(dataSchema);
-
   const activeWidget = widgets.find((w) => w.id === activeId);
+  const lastAiMessage = [...aiMessages].reverse().find((m) => m.role === 'assistant') ?? null;
 
   return (
     <div className="flex-1 h-screen overflow-y-auto citi-gradient-bg citi-grid-pattern">
-      <div className="p-8">
-        {/* Header */}
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
-              <LayoutGrid size={18} className="text-primary" />
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-foreground">Dashboard Generator</h2>
-              <p className="text-sm text-muted-foreground">Drag, drop, and prompt your way to beautiful dashboards</p>
-            </div>
-            <div className="ml-auto">
-              <p className="text-[10px] text-muted-foreground mb-1 text-right">Default source for new components</p>
-              <select
-                value={sourceId}
-                onChange={(e) => { setSourceId(e.target.value); }}
-                className="bg-card border border-border text-xs text-foreground rounded-lg px-3 py-2"
-              >
-                {dataSources.map((source) => (
-                  <option key={source.id} value={source.id}>{source.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          {activeFilters.filter((f) => f.value && f.value !== 'All').length > 0 && (
-            <div className="mt-3 flex items-center gap-2 flex-wrap">
-              <span className="text-xs text-muted-foreground font-medium">Active filters:</span>
-              {activeFilters.filter((f) => f.value && f.value !== 'All').map((f) => (
-                <button
-                  key={f.key}
-                  onClick={() => handleFilter(f.key, 'All')}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 text-primary rounded-full text-xs font-medium border border-primary/20 hover:bg-primary/20 transition-colors"
-                >
-                  {f.key}: {String(f.value)}
-                  <X size={10} />
-                </button>
-              ))}
-              <button
-                onClick={() => setActiveFilters([])}
-                className="text-xs text-muted-foreground hover:text-destructive transition-colors"
-              >
-                Clear all
-              </button>
-            </div>
-          )}
-        </motion.div>
+      <div className="p-6 max-w-[1800px] mx-auto">
 
-        {/* Toolbar */}
-        <LayoutToolbar
-          onAddRow={handleAddRow}
-          onAddCol={handleAddCol}
-          onTogglePanel={() => setShowAddPanel((v) => !v)}
-          showPanel={showAddPanel}
-        />
-        {widgets.length > 0 && (
-          <div className="mb-4 flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => navigator.clipboard.writeText(JSON.stringify(dashboardBundle, null, 2)).catch(() => {})}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-card border border-border text-foreground hover:border-primary/50 transition-all"
+        {/* ── Header ────────────────────────────────────────────────────────── */}
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 mb-6">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <LayoutGrid size={16} className="text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold text-foreground leading-tight">Dashboard Generator</h2>
+            <p className="text-[11px] text-muted-foreground">Drag · drop · prompt</p>
+          </div>
+
+          {/* Right side controls */}
+          <div className="ml-auto flex items-center gap-2">
+            {/* Source selector */}
+            <select
+              value={sourceId}
+              onChange={(e) => setSourceId(e.target.value)}
+              className="bg-card border border-border text-xs text-foreground rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-primary/50"
             >
-              <Copy size={12} />
-              Export JSON
-            </button>
+              {dataSources.map((source) => (
+                <option key={source.id} value={source.id}>{source.label}</option>
+              ))}
+            </select>
+
+            {/* Export JSON */}
+            {widgets.length > 0 && (
+              <button
+                onClick={() => navigator.clipboard.writeText(JSON.stringify(dashboardBundle, null, 2)).catch(() => {})}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all"
+                title="Copy dashboard JSON"
+              >
+                <Copy size={12} />
+                Export
+              </button>
+            )}
+
+            {/* Notes toggle */}
             <button
               onClick={() => setShowDashboardComments((v) => !v)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg border transition-all ${showDashboardComments ? 'bg-primary/10 border-primary text-primary' : 'bg-card border-border text-foreground hover:border-primary/50'}`}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg border transition-all ${
+                showDashboardComments
+                  ? 'bg-primary/10 border-primary text-primary'
+                  : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/40'
+              }`}
+              title="Dashboard notes"
             >
               <MessageSquare size={12} />
-              Dashboard Notes
+              Notes
               {dashboardComments.length > 0 && (
-                <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[9px] font-medium">{dashboardComments.length}</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground text-[9px] font-semibold">{dashboardComments.length}</span>
               )}
             </button>
           </div>
-        )}
+        </motion.div>
 
-        {/* Add Widget Panel */}
-        <AnimatePresence>
-          {showAddPanel && (
-            <AddWidgetPanel onAdd={handleAddWidget} onClose={() => setShowAddPanel(false)} selectableColumns={selectableColumns} rangeColumns={rangeColumns} />
-          )}
-        </AnimatePresence>
+        {/* ── Command Bar ───────────────────────────────────────────────────── */}
+        <DashboardCommandBar
+          onAiSend={handleAiSend}
+          onQuickAdd={handleAddWidget}
+          aiLoading={aiLoading}
+          lastAiMessage={lastAiMessage}
+        />
 
-        {/* Empty state */}
-        {widgets.length === 0 && (
+        {/* ── Active filters ────────────────────────────────────────────────── */}
+        {activeFilters.filter((f) => f.value && f.value !== 'All').length > 0 && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center justify-center py-24 gap-4"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="flex items-center gap-2 flex-wrap mb-4"
           >
-            <div className="w-20 h-20 rounded-2xl bg-muted flex items-center justify-center">
-              <LayoutGrid size={32} className="text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-semibold text-foreground">Your canvas is empty</h3>
-            <p className="text-sm text-muted-foreground text-center max-w-sm">
-              Click <strong>Add Component</strong> to start building your dashboard. Mix charts and filters for cross-filtering magic.
-            </p>
+            <span className="text-[11px] text-muted-foreground font-medium">Filters:</span>
+            {activeFilters.filter((f) => f.value && f.value !== 'All').map((f) => (
+              <button
+                key={f.key}
+                onClick={() => handleFilter(f.key, 'All')}
+                className="flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary rounded-full text-[11px] font-medium border border-primary/20 hover:bg-primary/20 transition-colors"
+              >
+                {f.key}: {String(f.value)}
+                <X size={9} />
+              </button>
+            ))}
             <button
-              onClick={() => setShowAddPanel(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium hover:opacity-90 transition-opacity shadow-lg shadow-primary/20"
+              onClick={() => setActiveFilters([])}
+              className="text-[11px] text-muted-foreground hover:text-destructive transition-colors"
             >
-              <Plus size={16} />
-              Add your first component
+              Clear all
             </button>
           </motion.div>
         )}
 
-        {/* Widget grid */}
+        {/* ── Empty state ───────────────────────────────────────────────────── */}
+        {widgets.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col items-center justify-center py-20 gap-3"
+          >
+            <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
+              <LayoutGrid size={28} className="text-muted-foreground/50" />
+            </div>
+            <h3 className="text-base font-semibold text-foreground">Canvas is empty</h3>
+            <p className="text-sm text-muted-foreground text-center max-w-xs">
+              Type a prompt above to let AI build your dashboard, or click a quick-add chip to start manually.
+            </p>
+          </motion.div>
+        )}
+
+        {/* ── Widget grid ───────────────────────────────────────────────────── */}
         {widgets.length > 0 && (
           <DndContext
             sensors={sensors}
@@ -1595,7 +2028,7 @@ export function DashboardGenerator() {
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-3 gap-5 auto-rows-auto">
+              <div className="grid grid-cols-3 gap-4 auto-rows-auto">
                 <AnimatePresence>
                   {widgets.map((widget) => (
                     <SortableWidget
@@ -1612,13 +2045,15 @@ export function DashboardGenerator() {
                       onFilter={handleFilter}
                       onSaveConfig={handleSaveConfig}
                       onAddComment={handleAddComment}
+                      onFetchPreview={(xAxisKey, type, prompt) =>
+                        queryChartData(widget.sourceId, type, prompt, xAxisKey)
+                      }
                     />
                   ))}
                 </AnimatePresence>
               </div>
             </SortableContext>
 
-            {/* Drag overlay */}
             <DragOverlay>
               {activeWidget && (
                 <div className="citi-card p-4 shadow-2xl opacity-90 rotate-2">
@@ -1629,55 +2064,51 @@ export function DashboardGenerator() {
           </DndContext>
         )}
 
-        {/* Dashboard-level comments panel */}
+        {/* ── Dashboard Notes ───────────────────────────────────────────────── */}
         <AnimatePresence>
           {showDashboardComments && (
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
+              exit={{ opacity: 0, y: 10 }}
               className="mt-6 citi-card p-5"
             >
               <div className="flex items-center gap-2 mb-4">
-                <MessageSquare size={15} className="text-primary" />
+                <MessageSquare size={14} className="text-primary" />
                 <h3 className="text-sm font-semibold text-foreground">Dashboard Notes</h3>
                 <span className="ml-auto text-xs text-muted-foreground">{dashboardComments.length} note{dashboardComments.length !== 1 ? 's' : ''}</span>
               </div>
-
-              {/* Existing comments */}
-              <div className="space-y-3 mb-4 max-h-64 overflow-y-auto">
+              <div className="space-y-2.5 mb-4 max-h-56 overflow-y-auto">
                 {dashboardComments.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-4 text-center">No notes yet. Add context, decisions, or observations about this dashboard.</p>
+                  <p className="text-xs text-muted-foreground py-4 text-center">No notes yet — add context, decisions, or observations.</p>
                 )}
                 {dashboardComments.map((c) => (
                   <div key={c.id} className="flex items-start gap-3 p-3 rounded-xl bg-muted/40 border border-border/50">
-                    <div className="w-7 h-7 rounded-full bg-primary/15 flex items-center justify-center shrink-0">
-                      <User size={12} className="text-primary" />
+                    <div className="w-6 h-6 rounded-full bg-primary/15 flex items-center justify-center shrink-0 mt-0.5">
+                      <User size={10} className="text-primary" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-xs font-medium text-foreground">{c.author}</span>
-                        <span className="text-[10px] text-muted-foreground">{new Date(c.timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                        <span className="text-[10px] text-muted-foreground">{new Date(c.timestamp).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })}</span>
                       </div>
-                      <p className="text-sm text-muted-foreground leading-relaxed">{c.text}</p>
+                      <p className="text-xs text-muted-foreground leading-relaxed">{c.text}</p>
                     </div>
                   </div>
                 ))}
               </div>
-
-              {/* Add note input */}
               <div className="flex items-start gap-3">
-                <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
-                  <User size={12} className="text-muted-foreground" />
+                <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0 mt-1">
+                  <User size={10} className="text-muted-foreground" />
                 </div>
                 <div className="flex-1 bg-card border border-border rounded-xl overflow-hidden focus-within:border-primary/50 transition-colors">
                   <textarea
                     value={dashboardCommentDraft}
                     onChange={(e) => setDashboardCommentDraft(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && e.metaKey) handleAddDashboardComment(); }}
-                    placeholder="Add a note, observation, or decision context… (⌘+Enter to submit)"
+                    placeholder="Add a note… (⌘+Enter to submit)"
                     rows={2}
-                    className="w-full bg-transparent px-3 pt-3 pb-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
+                    className="w-full bg-transparent px-3 pt-2.5 pb-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none resize-none"
                   />
                   <div className="flex justify-end px-2 pb-2">
                     <button
@@ -1694,7 +2125,9 @@ export function DashboardGenerator() {
             </motion.div>
           )}
         </AnimatePresence>
+
       </div>
     </div>
   );
 }
+

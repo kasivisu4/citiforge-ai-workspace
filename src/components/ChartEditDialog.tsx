@@ -63,14 +63,20 @@ export const COLOR_PALETTES: { name: string; colors: string[] }[] = [
 export const DEFAULT_COLORS = COLOR_PALETTES[0].colors;
 
 export function defaultChartConfig(type: ChartType): ChartConfig {
+  // area/line keep two series for comparison; bar/pie/heatmap default to single
+  const twoSeries = type === 'area' || type === 'line';
   return {
     xAxisKey: 'name',
     xAxisLabel: '',
     yAxisLabel: '',
-    yKeys: [
-      { key: 'value', label: 'Value',    color: DEFAULT_COLORS[0] },
-      { key: 'prev',  label: 'Previous', color: DEFAULT_COLORS[1] },
-    ],
+    yKeys: twoSeries
+      ? [
+          { key: 'value', label: 'Value',    color: DEFAULT_COLORS[0] },
+          { key: 'prev',  label: 'Previous', color: DEFAULT_COLORS[1] },
+        ]
+      : [
+          { key: 'value', label: 'Value', color: DEFAULT_COLORS[0] },
+        ],
     showGrid: true,
     showLegend: type === 'line' || type === 'area',
     showTooltip: true,
@@ -94,7 +100,7 @@ const CHART_TYPE_OPTIONS: { type: ChartType; label: string; icon: typeof BarChar
 
 // ─── Prompt → config helper ───────────────────────────────────────────────────
 
-function applyPromptToConfig(
+export function applyPromptToConfig(
   prompt: string,
   availableKeys: string[],
   currentConfig: ChartConfig,
@@ -102,14 +108,36 @@ function applyPromptToConfig(
   const p = prompt.toLowerCase();
   const updates: Partial<ChartConfig> = {};
 
-  const timeKeys = availableKeys.filter(k =>
-    ['name', 'date', 'month', 'year', 'quarter', 'week', 'period', 'time'].some(t => k.toLowerCase().includes(t)),
-  );
-  if (timeKeys.length > 0) updates.xAxisKey = timeKeys[0];
+  // Keys that are numeric/non-categorical and should never be the x-axis
+  const NUMERIC_KEYS = new Set(['value', 'prev']);
+  const categoricalKeys = availableKeys.filter(k => !NUMERIC_KEYS.has(k));
 
-  const valueKeys = availableKeys.filter(k => k !== (updates.xAxisKey ?? currentConfig.xAxisKey));
+  // Prefer a categorical key explicitly mentioned in the prompt/title.
+  // Prefix-matching handles singular/plural: "industry" matches key "industries"
+  const promptWords = p.split(/\W+/).filter(w => w.length >= 4);
+  const mentionedCatKey = categoricalKeys.find(k => {
+    const kLower = k.toLowerCase();
+    return promptWords.some(w => kLower.startsWith(w) || w.startsWith(kLower));
+  });
+
+  if (mentionedCatKey) {
+    updates.xAxisKey = mentionedCatKey;
+  } else {
+    const timeKeys = availableKeys.filter(k =>
+      ['name', 'date', 'month', 'year', 'quarter', 'week', 'period', 'time'].some(t => k.toLowerCase().includes(t)),
+    );
+    if (timeKeys.length > 0) updates.xAxisKey = timeKeys[0];
+  }
+
+  const isCategoricalX = !!mentionedCatKey;
+  // For value series: exclude the chosen xAxisKey and other categorical/string keys
+  const valueKeys = availableKeys.filter(k =>
+    k !== (updates.xAxisKey ?? currentConfig.xAxisKey) && NUMERIC_KEYS.has(k),
+  );
   const mentionedKeys = valueKeys.filter(k => p.includes(k.toLowerCase()));
-  const seriesKeys = mentionedKeys.length > 0 ? mentionedKeys : valueKeys.slice(0, 2);
+  // Categorical x-axis → single value bar/slice; time x-axis → allow two series
+  const maxSeries = isCategoricalX ? 1 : 2;
+  const seriesKeys = mentionedKeys.length > 0 ? mentionedKeys : valueKeys.slice(0, maxSeries);
 
   if (seriesKeys.length > 0) {
     updates.yKeys = seriesKeys.map((k, i) => ({
@@ -436,9 +464,11 @@ interface ChartEditDialogProps {
   open: boolean;
   onClose: () => void;
   onSave: (updated: Partial<EditableWidget> & { config: ChartConfig }) => void;
+  schemaKeys?: string[];
+  onFetchPreview?: (xAxisKey: string, widgetType: ChartType, prompt: string) => Promise<any[]>;
 }
 
-export function ChartEditDialog({ widget, open, onClose, onSave }: ChartEditDialogProps) {
+export function ChartEditDialog({ widget, open, onClose, onSave, schemaKeys, onFetchPreview }: ChartEditDialogProps) {
   const [draftTitle,    setDraftTitle]    = useState(widget.title);
   const [draftPrompt,   setDraftPrompt]   = useState(widget.prompt);
   const [draftType,     setDraftType]     = useState<ChartType>(widget.type);
@@ -446,6 +476,8 @@ export function ChartEditDialog({ widget, open, onClose, onSave }: ChartEditDial
   const [draftConfig,   setDraftConfig]   = useState<ChartConfig>({ ...widget.config });
   const [activeTab,     setActiveTab]     = useState<TabId>('prompt');
   const [promptApplied, setPromptApplied] = useState(false);
+  const [previewData,   setPreviewData]   = useState<any[]>(widget.data);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [, setDraggingKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -454,24 +486,41 @@ export function ChartEditDialog({ widget, open, onClose, onSave }: ChartEditDial
     setDraftType(widget.type);
     setDraftSpan(widget.span);
     setDraftConfig({ ...widget.config });
+    setPreviewData(widget.data);
     setActiveTab('prompt');
     setPromptApplied(false);
   }, [widget.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setPreviewData(widget.data);
+  }, [widget.data]);
 
   const updateConfig = useCallback((partial: Partial<ChartConfig>) => {
     setDraftConfig((prev) => ({ ...prev, ...partial }));
   }, []);
 
   const availableKeys = useMemo(
-    () => (widget.data.length > 0 ? Object.keys(widget.data[0]) : []),
-    [widget.data],
+    () =>
+      schemaKeys && schemaKeys.length > 0
+        ? schemaKeys
+        : widget.data.length > 0
+          ? Object.keys(widget.data[0]).filter((k) => !k.startsWith('_'))
+          : [],
+    [schemaKeys, widget.data],
   );
 
-  const applyPrompt = () => {
+  const applyPrompt = async () => {
     const updates = applyPromptToConfig(draftPrompt, availableKeys, draftConfig);
     updateConfig(updates);
     setPromptApplied(true);
     setTimeout(() => setPromptApplied(false), 2500);
+    if (onFetchPreview) {
+      const newXAxisKey = updates.xAxisKey ?? draftConfig.xAxisKey;
+      setPreviewLoading(true);
+      const data = await onFetchPreview(newXAxisKey, draftType, draftPrompt);
+      setPreviewLoading(false);
+      if (data.length > 0) setPreviewData(data);
+    }
   };
 
   const updateYKey = (i: number, partial: Partial<ChartYKey>) => {
@@ -515,8 +564,8 @@ export function ChartEditDialog({ widget, open, onClose, onSave }: ChartEditDial
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
-        className="p-0 gap-0 overflow-hidden border-0 shadow-2xl"
-        style={{ maxWidth: '92vw', width: 1300, height: '92vh', maxHeight: '92vh' }}
+        className="p-0 gap-0 overflow-hidden border-0 shadow-2xl [&>button:last-child]:hidden"
+        style={{ width: '98vw', maxWidth: '98vw', height: '92vh', maxHeight: '92vh' }}
       >
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-3.5 border-b border-border bg-card/80 backdrop-blur-sm shrink-0">
@@ -544,7 +593,7 @@ export function ChartEditDialog({ widget, open, onClose, onSave }: ChartEditDial
         <div className="flex flex-1 min-h-0 overflow-hidden">
 
           {/* Left: preview + keys */}
-          <div className="flex flex-col border-r border-border bg-muted/20" style={{ width: 420, minWidth: 380 }}>
+          <div className="flex flex-col border-r border-border bg-muted/20" style={{ width: '55vw', minWidth: '40vw' }}>
             {!isFilter && (
               <div className="px-4 pt-3 pb-2 border-b border-border/50 shrink-0">
                 <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Chart Type</p>
@@ -564,8 +613,15 @@ export function ChartEditDialog({ widget, open, onClose, onSave }: ChartEditDial
 
             <div className="flex-1 p-4 min-h-0 overflow-hidden">
               <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Live Preview</p>
-              <div className="rounded-xl border border-border/50 bg-card overflow-hidden p-3" style={{ height: 'calc(100% - 20px)' }}>
-                <ChartPreview widget={{ ...widget, type: draftType }} config={draftConfig} />
+              <div className="relative rounded-xl border border-border/50 bg-card overflow-hidden p-3" style={{ height: 'calc(100% - 20px)' }}>
+                <ChartPreview widget={{ ...widget, type: draftType, data: previewData }} config={draftConfig} />
+                {previewLoading && (
+                  <div className="absolute inset-0 bg-background/60 backdrop-blur-sm flex items-center justify-center rounded-xl">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="animate-spin">⟳</span> Updating preview…
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

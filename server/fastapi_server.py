@@ -1,12 +1,65 @@
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from enum import Enum
+from pydantic import BaseModel, Field
 import json
 import time
 import uuid
 import asyncio
 from typing import List, Dict, Any, Optional, Literal
+
+# ── LangChain / LM Studio ──────────────────────────────────────────────────────
+try:
+    from langchain_ollama import ChatOllama as _ChatOllama
+
+    _OLLAMA_AVAILABLE = True
+except ImportError:
+    _OLLAMA_AVAILABLE = False
+
+try:
+    from langchain_openai import ChatOpenAI as _ChatOpenAI
+
+    _OPENAI_COMPAT_AVAILABLE = True
+except ImportError:
+    _OPENAI_COMPAT_AVAILABLE = False
+
+from langchain_core.messages import SystemMessage, HumanMessage
+
+# LM Studio Ollama-compatible endpoint (port 11434)
+LMSTUDIO_BASE_URL = "http://127.0.0.1:11434"
+LMSTUDIO_MODEL = "qwen/qwen3-vl-8b"
+
+# Create a full trade overview with KPIs, bar chart, and filters	KPI + bar chart + filter-select widgets
+# Show me a pie chart of industry distribution and a monthly area trend	Pie + area chart
+# Add a heatmap of all trade metrics across months	Full-width heatmap
+# Give me a filter for imports/exports and a bar chart by region	Filter-select + bar chart
+# Build a complete manufacturing risk dashboard	Switches context to manufacturing data
+# Add KPI for total value, show previous vs current as line chart	KPI + multi-line chart
+# Add a range filter for trade value and a pie by products	Filter-range + pie chart
+# Show me just the top 3 metrics as KPI cards	3 × KPI cards
+
+
+def _get_llm():
+    """Return a LangChain chat model pointed at the local LM Studio instance.
+    Prefers the OpenAI-compatible endpoint (more broadly supported by LM Studio
+    Ollama mode), which is served at <base_url>/v1.
+    """
+    if _OPENAI_COMPAT_AVAILABLE:
+        return _ChatOpenAI(
+            model=LMSTUDIO_MODEL,
+            base_url=f"{LMSTUDIO_BASE_URL}/v1",
+            api_key="lm-studio",  # LM Studio accepts any non-empty key
+            temperature=0,
+        )
+    if _OLLAMA_AVAILABLE:
+        return _ChatOllama(
+            model=LMSTUDIO_MODEL, base_url=LMSTUDIO_BASE_URL, temperature=0
+        )
+    raise RuntimeError(
+        "No LangChain LLM backend available. Install langchain-ollama or langchain-openai."
+    )
+
 
 app = FastAPI()
 
@@ -83,6 +136,12 @@ class DashboardOptionsRequest(BaseModel):
     source: str
     column: str
     filters: Optional[Dict[str, Any]] = None
+
+
+class AiGenerateRequest(BaseModel):
+    message: str
+    sourceId: str = "global-trade"
+    existingWidgets: Optional[List[Dict[str, Any]]] = None
 
 
 DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
@@ -460,7 +519,34 @@ def build_dashboard_response(
             }
         ]
 
+    # For bar / area / line: if the caller supplied a categorical xAxisKey
+    # (not a time-series field), aggregate the rows so each category appears once.
+    if (
+        widget_type in ("bar", "area", "line")
+        and x_axis_key
+        and x_axis_key not in _TIME_KEYS
+    ):
+        return _aggregate_by_key(rows, x_axis_key)
+
     return [dict(row) for row in rows]
+
+
+# Time-series keys that should NOT trigger categorical aggregation
+_TIME_KEYS = {"name", "date", "month", "year", "quarter", "week", "period", "time"}
+
+
+def _aggregate_by_key(
+    rows: List[Dict[str, Any]], group_key: str
+) -> List[Dict[str, Any]]:
+    """Sum numeric columns grouped by group_key, preserving order of first appearance."""
+    seen: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        gval = str(row.get(group_key) or "Unknown")
+        if gval not in seen:
+            seen[gval] = {group_key: gval, "value": 0, "prev": 0}
+        seen[gval]["value"] += int(row.get("value", 0))
+        seen[gval]["prev"] += int(row.get("prev", 0))
+    return list(seen.values())
 
 
 @app.get("/dashboard/data-sources")
@@ -511,6 +597,145 @@ async def get_dashboard_options(payload: DashboardOptionsRequest):
         "column": payload.column,
         "options": options,
     }
+
+
+
+
+
+#  AI Dashboard Generation  Pydantic output schema 
+
+
+class _WidgetType(str, Enum):
+    bar = "bar"
+    area = "area"
+    line = "line"
+    pie = "pie"
+    heatmap = "heatmap"
+    kpi = "kpi"
+    filter_select = "filter-select"
+    filter_range = "filter-range"
+
+
+class _XAxisKey(str, Enum):
+    name = "name"
+    imports_exports = "imports_exports"
+    industries = "industries"
+    products = "products"
+    region = "region"
+    country = "country"
+
+
+class _WidgetAction(BaseModel):
+    """A single widget to add to the dashboard."""
+
+    widgetType: _WidgetType = Field(description="The chart or widget type to render.")
+    title: str = Field(description="Short, descriptive title for the widget (3-5 words).")
+    prompt: str = Field(
+        description=(
+            "What data to show. "
+            "For filter-select/filter-range use the column name as the prompt."
+        )
+    )
+    span: Literal[1, 2, 3] = Field(
+        description=(
+            "Width: 1=small (kpi/pie/filter), "
+            "2=half-width (bar/area/line default), "
+            "3=full-width (heatmap)."
+        )
+    )
+    xAxisKey: _XAxisKey = Field(
+        description=(
+            "Column to group or trend by. "
+            "name=monthly time-series, industries=by industry, "
+            "products=by product, region=by region, "
+            "country=by country, imports_exports=by trade direction."
+        )
+    )
+
+
+class _DashboardAiResponse(BaseModel):
+    """Structured response from the dashboard AI assistant."""
+
+    message: str = Field(
+        description="Friendly 1-2 sentence explanation of what is being added."
+    )
+    actions: List[_WidgetAction] = Field(
+        description="List of widgets to add (1-6 actions)."
+    )
+
+
+_AI_SYSTEM_PROMPT = """You are an expert dashboard builder assistant for a financial trade analytics platform called CitiForge.
+
+Available data columns for source "{source_id}":
+  name              - month label (Jan-Jul)  <- time-series / monthly trends
+  imports_exports   - "Imports" or "Exports"
+  industries        - {industries}
+  products          - {products}
+  region            - APAC, EMEA, Americas
+  country           - individual country names
+  value             - numeric trade value (primary metric)
+  prev              - previous-period value (comparison / trend)
+
+Current dashboard widgets: {existing_widgets}
+
+User request: {user_message}
+
+Choose xAxisKey based on what the user wants to group by:
+  monthly trend -> name | by industry -> industries | by product -> products
+  by region -> region | by country -> country | by trade direction -> imports_exports
+
+Use span=1 for kpi/pie/filter, span=2 for bar/area/line, span=3 for heatmap.
+"""
+
+
+
+@app.post("/dashboard/ai-generate")
+async def ai_generate_dashboard(payload: AiGenerateRequest):
+    """Use LangChain structured output to generate dashboard widget actions."""
+    source_record = get_dashboard_source(payload.sourceId)
+    schema = source_record.get("schema", {})
+
+    existing = payload.existingWidgets or []
+    existing_summary = (
+        ", ".join(f"{w.get('type','?')} '{w.get('title','?')}'" for w in existing)
+        if existing
+        else "none"
+    )
+
+    system_content = _AI_SYSTEM_PROMPT.format(
+        source_id=payload.sourceId,
+        industries=", ".join(v for v in schema.get("industries", []) if v != "All"),
+        products=", ".join(v for v in schema.get("products", []) if v != "All"),
+        existing_widgets=existing_summary,
+        user_message=payload.message,
+    )
+
+    try:
+        structured_llm = _get_llm().with_structured_output(_DashboardAiResponse)
+        result: _DashboardAiResponse = await structured_llm.ainvoke(
+            [SystemMessage(content=system_content)]
+        )
+        return {
+            "ok": True,
+            "message": result.message,
+            "actions": [
+                {
+                    "type": "add_widget",
+                    "widgetType": a.widgetType.value,
+                    "title": a.title,
+                    "prompt": a.prompt,
+                    "span": a.span,
+                    "xAxisKey": a.xAxisKey.value,
+                }
+                for a in result.actions
+            ],
+        }
+
+    except Exception as exc:
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": str(exc)},
+        )
 
 
 def build_suggested_queries(input_text: str) -> List[Dict[str, Any]]:
