@@ -6,14 +6,14 @@ import {
 import {
   X, Check, BarChart3, TrendingUp, Activity, PieChart as PieIcon,
   LayoutGrid, Sliders, Plus, Minus, Copy, Wand2, GripVertical,
-  ArrowRight, ChevronRight,
+  ArrowRight, ChevronRight, Table2, FileText,
 } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ChartType = 'bar' | 'area' | 'line' | 'pie' | 'heatmap' | 'filter-select' | 'filter-range' | 'kpi';
+export type ChartType = 'bar' | 'area' | 'line' | 'pie' | 'heatmap' | 'filter-select' | 'filter-range' | 'kpi' | 'grid' | 'text';
 
 export interface ChartYKey {
   key: string;
@@ -96,6 +96,8 @@ const CHART_TYPE_OPTIONS: { type: ChartType; label: string; icon: typeof BarChar
   { type: 'pie',     label: 'Pie',     icon: PieIcon    },
   { type: 'heatmap', label: 'Heatmap', icon: LayoutGrid },
   { type: 'kpi',     label: 'KPI',     icon: Sliders    },
+  { type: 'grid',    label: 'Grid',    icon: Table2     },
+  { type: 'text',    label: 'Text',    icon: FileText   },
 ];
 
 // ─── Prompt → config helper ───────────────────────────────────────────────────
@@ -263,6 +265,109 @@ function ChartPreview({ widget, config }: { widget: EditableWidget; config: Char
           ))}
         </LineChart>
       </ResponsiveContainer>
+    );
+  }
+
+  if (widget.type === 'heatmap') {
+    const points = data.filter((row: any) => row && typeof row === 'object');
+    const metrics = config.yKeys.length > 0
+      ? config.yKeys.map((yk) => ({ key: yk.key, label: yk.label }))
+      : [{ key: 'value', label: 'Value' }, { key: 'prev', label: 'Prev' }];
+    const vals = points.flatMap((row: any) =>
+      metrics.map((m) => Number(row?.[m.key])).filter((v) => Number.isFinite(v))
+    );
+    const min = vals.length ? Math.min(...vals) : 0;
+    const max = vals.length ? Math.max(...vals) : 1;
+    const range = max - min || 1;
+    const intensity = (raw: unknown) => {
+      const v = Number(raw);
+      if (!Number.isFinite(v)) return 0.08;
+      return 0.12 + ((v - min) / range) * 0.78;
+    };
+    if (!points.length) return (
+      <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+        <BarChart3 size={24} className="opacity-30" />
+        <p className="text-xs">No data — save and re-open after data loads</p>
+      </div>
+    );
+    return (
+      <div className="h-full overflow-auto">
+        <table className="w-full text-[10px] border-separate border-spacing-1">
+          <thead>
+            <tr>
+              <th className="text-left text-muted-foreground px-1 py-1 font-medium">Metric</th>
+              {points.map((row: any, idx: number) => (
+                <th key={idx} className="text-muted-foreground px-1 py-1 font-medium">{String(row?.name ?? `P${idx + 1}`)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+             {metrics.map((metric, metricIdx) => {
+               const cellColor = config.yKeys[metricIdx]?.color ?? DEFAULT_COLORS[metricIdx % DEFAULT_COLORS.length];
+               return (
+                 <tr key={metric.key}>
+                   <td className="text-muted-foreground px-1 py-1 font-medium">{metric.label}</td>
+                   {points.map((row: any, idx: number) => {
+                     const raw = row?.[metric.key];
+                     return (
+                       <td key={idx}>
+                         <div className="relative w-full rounded border border-border overflow-hidden">
+                           <div className="absolute inset-0" style={{ background: cellColor, opacity: intensity(raw) }} />
+                           <div className="relative px-1 py-2 text-foreground text-center">
+                             {Number.isFinite(Number(raw)) ? Number(raw).toLocaleString() : '-'}
+                           </div>
+                         </div>
+                       </td>
+                     );
+                   })}
+                 </tr>
+               );
+             })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (widget.type === 'grid') {
+    if (!data.length) return (
+      <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+        <BarChart3 size={24} className="opacity-30" />
+        <p className="text-xs">No data</p>
+      </div>
+    );
+    const columns = Object.keys(data[0]).filter((k) => !k.startsWith('_'));
+    return (
+      <div className="h-full overflow-auto">
+        <table className="w-full text-[10px] border-collapse">
+          <thead className="sticky top-0 bg-card">
+            <tr className="border-b border-border">
+              {columns.map((col) => (
+                <th key={col} className="text-left text-muted-foreground px-2 py-1.5 font-medium whitespace-nowrap">{col}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.slice(0, 10).map((row: any, i: number) => (
+              <tr key={i} className="border-b border-border/40 hover:bg-primary/5 transition-colors">
+                {columns.map((col) => (
+                  <td key={col} className="px-2 py-1.5 text-foreground whitespace-nowrap">{String(row[col] ?? '')}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (widget.type === 'text') {
+    return (
+      <div className="h-full p-3 overflow-auto flex items-start">
+        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+          {widget.prompt || <span className="text-muted-foreground italic text-xs">No text content. Use the Text tab to add content.</span>}
+        </p>
+      </div>
     );
   }
 
@@ -552,14 +657,19 @@ export function ChartEditDialog({ widget, open, onClose, onSave, schemaKeys, onF
   };
 
   const isFilter = draftType.startsWith('filter');
+  const isText = draftType === 'text';
 
   const tabs: { id: TabId; label: string; disabled?: boolean }[] = [
-    { id: 'prompt', label: '✦ Prompt' },
-    { id: 'axes',   label: 'Axes',   disabled: isFilter || draftType === 'kpi' },
-    { id: 'series', label: 'Series', disabled: isFilter || draftType === 'kpi' },
-    { id: 'style',  label: 'Style',  disabled: isFilter },
-    { id: 'json',   label: 'JSON' },
+    { id: 'prompt', label: isText ? '✦ Text' : '✦ Prompt' },
+    { id: 'axes',   label: 'Axes',   disabled: isFilter || draftType === 'kpi' || isText || draftType === 'grid' },
+    { id: 'series', label: 'Series', disabled: isFilter || draftType === 'kpi' || isText || draftType === 'grid' },
+    { id: 'style',  label: 'Style',  disabled: isFilter || isText },
+    { id: 'json',   label: 'JSON',   disabled: isText },
   ];
+
+  const availableManualShortcuts = (['axes', 'series', 'style'] as const).filter(
+    t => !tabs.find(tab => tab.id === t)?.disabled,
+  );
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
@@ -677,24 +787,24 @@ export function ChartEditDialog({ widget, open, onClose, onSave, schemaKeys, onF
                     <Section label="Basic Info">
                       <FieldInput label="Chart Title" value={draftTitle} onChange={setDraftTitle} placeholder="e.g. Monthly Revenue Trend" />
                     </Section>
-                    <Section label="AI Prompt — describe what to visualize">
+                    <Section label={isText ? 'Text Content' : 'AI Prompt — describe what to visualize'}>
                       <div>
                         <textarea value={draftPrompt} onChange={(e) => setDraftPrompt(e.target.value)}
-                          onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') applyPrompt(); }}
-                          placeholder='Describe the chart, e.g.: "Show monthly revenue vs previous period as a smooth area chart with legend."'
-                          rows={5}
+                          onKeyDown={(e) => { if (!isText && (e.metaKey || e.ctrlKey) && e.key === 'Enter') applyPrompt(); }}
+                          placeholder={isText ? 'Enter your report text, analysis notes, or any formatted content…' : 'Describe the chart, e.g.: "Show monthly revenue vs previous period as a smooth area chart with legend."'}
+                          rows={isText ? 10 : 5}
                           className="w-full bg-card border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60 resize-none transition-colors leading-relaxed"
                         />
-                        <p className="text-[10px] text-muted-foreground mt-1">Ctrl/⌘+Enter to apply</p>
+                        {!isText && <p className="text-[10px] text-muted-foreground mt-1">Ctrl/⌘+Enter to apply</p>}
                       </div>
-                      <button onClick={applyPrompt}
+                      {!isText && <button onClick={applyPrompt}
                         className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium text-sm transition-all ${
                           promptApplied ? 'bg-emerald-500/10 text-emerald-600 border border-emerald-500/30' : 'bg-primary text-primary-foreground hover:opacity-90 shadow-sm shadow-primary/20'
                         }`}
                       >
                         {promptApplied ? <><Check size={15} /> Config updated from prompt</> : <><Wand2 size={15} /> Generate Config from Prompt</>}
-                      </button>
-                      {promptApplied && (
+                      </button>}
+                      {!isText && promptApplied && (
                         <div className="flex items-start gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800">
                           <Check size={14} className="text-emerald-600 mt-0.5 shrink-0" />
                           <div>
@@ -704,19 +814,23 @@ export function ChartEditDialog({ widget, open, onClose, onSave, schemaKeys, onF
                         </div>
                       )}
                     </Section>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <div className="h-px flex-1 bg-border" /><span className="text-xs">or edit manually</span><div className="h-px flex-1 bg-border" />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(['axes', 'series', 'style'] as const).map((tab) => (
-                        <button key={tab} onClick={() => setActiveTab(tab)}
-                          className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-border bg-card hover:border-primary/50 hover:bg-primary/5 text-sm text-muted-foreground hover:text-foreground transition-all"
-                        >
-                          <ChevronRight size={14} />
-                          {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                        </button>
-                      ))}
-                    </div>
+                    {!isText && (
+                      <>
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <div className="h-px flex-1 bg-border" /><span className="text-xs">or edit manually</span><div className="h-px flex-1 bg-border" />
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {(['axes', 'series', 'style'] as const).map((tab) => (
+                            <button key={tab} onClick={() => setActiveTab(tab)}
+                              className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-border bg-card hover:border-primary/50 hover:bg-primary/5 text-sm text-muted-foreground hover:text-foreground transition-all"
+                            >
+                              <ChevronRight size={14} />
+                              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                            </button>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
 

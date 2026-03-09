@@ -28,13 +28,14 @@ import {
   TrendingUp, Filter, LayoutGrid, LayoutList, Sliders, Loader2,
   PieChart as PieIcon, Activity, Bot, Sparkles, MessageSquare,
   ChevronDown, ChevronUp, Copy, Send, User, MessageCircle,
+  Download, Table2, FileText, FileDown,
 } from 'lucide-react';
 import { ChartEditDialog, defaultChartConfig, applyPromptToConfig } from './ChartEditDialog';
 import type { ChartConfig, EditableWidget } from './ChartEditDialog';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ChartType = 'bar' | 'area' | 'line' | 'pie' | 'heatmap' | 'filter-select' | 'filter-range' | 'kpi';
+type ChartType = 'bar' | 'area' | 'line' | 'pie' | 'heatmap' | 'filter-select' | 'filter-range' | 'kpi' | 'grid' | 'text';
 
 export interface WidgetComment {
   id: string;
@@ -211,6 +212,17 @@ function generateMockData(prompt: string, type: ChartType): any[] {
     return [{ value: lower.includes('risk') ? '72/100' : lower.includes('asset') ? '$2.4T' : '99.7%', change: '+3.2%', positive: true }];
   }
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'];
+  if (type === 'grid') {
+    return months.map((m, i) => ({
+      name: m,
+      value: Math.round(3000 + Math.random() * 3000 + i * 400),
+      prev: Math.round(2500 + Math.random() * 2500 + i * 300),
+      change: `+${(5 + Math.random() * 15).toFixed(1)}%`,
+    }));
+  }
+  if (type === 'text') {
+    return [];
+  }
   return months.map((m, i) => ({
     name: m,
     value: Math.round(3000 + Math.random() * 3000 + i * 400),
@@ -296,14 +308,16 @@ function extractChartRow(eventLike: unknown): Record<string, unknown> | null {
 // ─── Widget type catalogue ────────────────────────────────────────────────────
 
 const WIDGET_TYPES: { type: ChartType; label: string; icon: typeof BarChart3; description: string }[] = [
-  { type: 'bar', label: 'Bar Chart', icon: BarChart3, description: 'Compare values across categories' },
-  { type: 'area', label: 'Area Chart', icon: TrendingUp, description: 'Show trends over time' },
-  { type: 'line', label: 'Line Chart', icon: Activity, description: 'Multi-series time series' },
-  { type: 'pie', label: 'Pie Chart', icon: PieIcon, description: 'Part-to-whole distribution' },
-  { type: 'heatmap', label: 'Heatmap', icon: LayoutGrid, description: 'Color intensity across rows/metrics' },
-  { type: 'kpi', label: 'KPI Card', icon: Sliders, description: 'Single metric highlight' },
-  { type: 'filter-select', label: 'Filter (Select)', icon: Filter, description: 'Dropdown cross-filter' },
-  { type: 'filter-range', label: 'Filter (Range)', icon: Sliders, description: 'Numeric range slider' },
+  { type: 'bar',           label: 'Bar Chart',       icon: BarChart3,  description: 'Compare values across categories' },
+  { type: 'area',          label: 'Area Chart',      icon: TrendingUp, description: 'Show trends over time' },
+  { type: 'line',          label: 'Line Chart',      icon: Activity,   description: 'Multi-series time series' },
+  { type: 'pie',           label: 'Pie Chart',       icon: PieIcon,    description: 'Part-to-whole distribution' },
+  { type: 'heatmap',       label: 'Heatmap',         icon: LayoutGrid, description: 'Color intensity across rows/metrics' },
+  { type: 'kpi',           label: 'KPI Card',        icon: Sliders,    description: 'Single metric highlight' },
+  { type: 'grid',          label: 'Data Grid',       icon: Table2,     description: 'Tabular data view with columns' },
+  { type: 'text',          label: 'Text Block',      icon: FileText,   description: 'Report section with formatted text' },
+  { type: 'filter-select', label: 'Filter (Select)', icon: Filter,     description: 'Dropdown cross-filter' },
+  { type: 'filter-range',  label: 'Filter (Range)',  icon: Sliders,    description: 'Numeric range slider' },
 ];
 
 // ─── Individual chart renderers ───────────────────────────────────────────────
@@ -474,25 +488,71 @@ function ChartContent({
             </tr>
           </thead>
           <tbody>
-            {metrics.map((metric) => (
-              <tr key={metric.key}>
-                <td className="text-muted-foreground px-1 py-1 font-medium">{metric.label}</td>
-                {points.map((row: any, index: number) => {
-                  const rawValue = row?.[metric.key];
-                  const alpha = intensity(rawValue);
+            {metrics.map((metric, metricIdx) => {
+              const cellColor = cfg.yKeys[metricIdx]?.color ?? COLORS[metricIdx % COLORS.length];
+              return (
+                <tr key={metric.key}>
+                  <td className="text-muted-foreground px-1 py-1 font-medium">{metric.label}</td>
+                  {points.map((row: any, index: number) => {
+                    const rawValue = row?.[metric.key];
+                    const alpha = intensity(rawValue);
+                    const filter = resolveChartFilter(row as Record<string, unknown>, dataSchema);
+                    return (
+                      <td key={`${metric.key}-${index}`}>
+                        <button
+                          onClick={() => { if (filter) onApplyFilter(filter.key, filter.value); }}
+                          className="relative w-full rounded border border-border text-foreground hover:border-primary/60 transition-colors overflow-hidden"
+                        >
+                          <div className="absolute inset-0" style={{ background: cellColor, opacity: alpha }} />
+                          <span className="relative block px-1 py-2">{Number.isFinite(Number(rawValue)) ? Number(rawValue).toLocaleString() : '-'}</span>
+                        </button>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  if (widget.type === 'grid') {
+    if (!data.length) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+          <Table2 size={24} className="opacity-30" />
+          <p className="text-xs">No data available</p>
+        </div>
+      );
+    }
+    const columns = Object.keys(data[0]).filter((k) => !k.startsWith('_'));
+    return (
+      <div className="h-full overflow-auto">
+        <table className="w-full text-[10px] border-collapse">
+          <thead className="sticky top-0 bg-card z-10">
+            <tr className="border-b border-border">
+              {columns.map((col) => (
+                <th key={col} className="text-left text-muted-foreground px-2 py-1.5 font-medium whitespace-nowrap">
+                  {col.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {data.map((row: any, i: number) => (
+              <tr
+                key={i}
+                className="border-b border-border/40 hover:bg-primary/5 transition-colors cursor-pointer"
+                onClick={() => {
                   const filter = resolveChartFilter(row as Record<string, unknown>, dataSchema);
-                  return (
-                    <td key={`${metric.key}-${index}`}>
-                      <button
-                        onClick={() => { if (filter) onApplyFilter(filter.key, filter.value); }}
-                        className="w-full rounded px-1 py-2 border border-border text-foreground hover:border-primary/60 transition-colors"
-                        style={{ backgroundColor: `hsl(var(--primary) / ${alpha})` }}
-                      >
-                        {Number.isFinite(Number(rawValue)) ? Number(rawValue).toLocaleString() : '-'}
-                      </button>
-                    </td>
-                  );
-                })}
+                  if (filter) onApplyFilter(filter.key, filter.value);
+                }}
+              >
+                {columns.map((col) => (
+                  <td key={col} className="px-2 py-1.5 text-foreground whitespace-nowrap">{String(row[col] ?? '')}</td>
+                ))}
               </tr>
             ))}
           </tbody>
@@ -765,8 +825,11 @@ function SortableWidget({
   const [showInsight, setShowInsight] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [commentDraft, setCommentDraft] = useState('');
+  const [textEditMode, setTextEditMode] = useState(false);
+  const [textDraft, setTextDraft] = useState(widget.prompt);
   const commentInputRef = useRef<HTMLInputElement>(null);
   const isFilter = widget.type.startsWith('filter');
+  const isText = widget.type === 'text';
   const currentFilter = activeFilters.find((f) => f.key === (widget.filterKey || widget.id));
 
   const spanClass = widget.span === 3 ? 'col-span-3' : widget.span === 2 ? 'col-span-2' : 'col-span-1';
@@ -780,8 +843,23 @@ function SortableWidget({
     setCommentDraft('');
   };
 
+  const handleDownloadPng = async () => {
+    const el = document.querySelector(`[data-widget-id="${widget.id}"]`) as HTMLElement;
+    if (!el) return;
+    const { default: html2canvas } = await import('html2canvas');
+    const canvas = await html2canvas(el, { useCORS: true, scale: 2 });
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${widget.title.replace(/\s+/g, '-').toLowerCase()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  };
+
   return (
     <motion.div
+      data-widget-id={widget.id}
       ref={setNodeRef}
       style={style}
       layout="position"
@@ -810,15 +888,26 @@ function SortableWidget({
           {widget.span === 1 ? <LayoutList size={13} /> : <LayoutGrid size={13} />}
         </button>
 
-        {/* Edit button – opens full dialog */}
+        {/* Download PNG */}
         <button
-          onClick={() => setEditDialogOpen(true)}
-          className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 text-[10px] font-medium transition-all"
-          title="Edit chart options"
+          onClick={handleDownloadPng}
+          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all"
+          title="Download as PNG"
         >
-          <Edit3 size={11} />
-          Edit
+          <Download size={13} />
         </button>
+
+        {/* Edit button – opens full dialog (not for text) */}
+        {!isText && (
+          <button
+            onClick={() => setEditDialogOpen(true)}
+            className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 text-[10px] font-medium transition-all"
+            title="Edit chart options"
+          >
+            <Edit3 size={11} />
+            Edit
+          </button>
+        )}
 
         {/* Delete */}
         <button
@@ -831,12 +920,33 @@ function SortableWidget({
       </div>
 
       {/* Content */}
-      <div className="h-[200px] shrink-0 p-4">
+      <div className={isText ? 'flex-1 min-h-[140px] p-4' : 'h-[200px] shrink-0 p-4'}>
         {widget.loading ? (
           <div className="flex items-center justify-center h-full gap-2 text-muted-foreground">
             <Loader2 size={18} className="animate-spin" />
             <span className="text-xs">Generating…</span>
           </div>
+        ) : isText ? (
+          textEditMode ? (
+            <textarea
+              value={textDraft}
+              onChange={(e) => setTextDraft(e.target.value)}
+              onBlur={() => {
+                setTextEditMode(false);
+                if (textDraft !== widget.prompt) onUpdatePrompt(widget.id, textDraft);
+              }}
+              autoFocus
+              placeholder="Enter your report text, analysis notes, or observations…"
+              className="w-full h-full bg-transparent text-sm text-foreground resize-none focus:outline-none leading-relaxed placeholder:text-muted-foreground"
+            />
+          ) : (
+            <div
+              onClick={() => setTextEditMode(true)}
+              className="h-full cursor-text text-sm text-foreground leading-relaxed whitespace-pre-wrap overflow-auto"
+            >
+              {widget.prompt ? widget.prompt : <span className="text-muted-foreground italic text-xs">Click to add text…</span>}
+            </div>
+          )
         ) : isFilter ? (
           <FilterWidget
             widget={widget}
@@ -853,7 +963,7 @@ function SortableWidget({
       </div>
 
       {/* Bottom action bar */}
-      {!isFilter && (
+      {!isFilter && !isText && (
         <div className="border-t border-border/40 px-4 py-1.5 flex items-center gap-3">
           {/* AI Insight toggle */}
           <button
@@ -984,6 +1094,8 @@ const QUICK_ADD_DEFS: {
   { type: 'pie',           label: 'Pie',     icon: PieIcon,    defaultTitle: 'Distribution',       defaultPrompt: 'Distribution by category'                },
   { type: 'kpi',           label: 'KPI',     icon: Sliders,    defaultTitle: 'Key Metric',         defaultPrompt: 'Show the headline KPI value and change'  },
   { type: 'heatmap',       label: 'Heatmap', icon: LayoutGrid, defaultTitle: 'Heatmap',            defaultPrompt: 'Color intensity across time and metrics' },
+  { type: 'grid',          label: 'Grid',    icon: Table2,     defaultTitle: 'Data Grid',          defaultPrompt: 'Show data as tabular grid'               },
+  { type: 'text',          label: 'Text',    icon: FileText,   defaultTitle: 'Report Section',     defaultPrompt: 'Enter your report text here…'            },
   { type: 'filter-select', label: 'Filter',  icon: Filter,     defaultTitle: 'Filter: Industries', defaultPrompt: 'industries'                              },
 ];
 
@@ -1481,8 +1593,8 @@ function createWidget(type: ChartType, title: string, prompt: string, sourceId: 
     title: normalizedTitle || fallbackTitle,
     prompt: normalizedPrompt || normalizedTitle || typeLabel,
     data: [],
-    span: type === 'kpi' ? 1 : type.startsWith('filter') ? 1 : 2,
-    loading: true,
+    span: type === 'kpi' ? 1 : type.startsWith('filter') ? 1 : type === 'text' ? 3 : 2,
+    loading: type === 'text' ? false : true,
     filterKey: type.startsWith('filter') ? (normalizedPrompt || 'name') : undefined,
     config: defaultChartConfig(type),
     aiInsight: undefined,
@@ -1649,7 +1761,7 @@ export function DashboardGenerator() {
       }
     }
     setWidgets((prev) => [...prev, widget]);
-    if (type === 'filter-select') {
+    if (type === 'filter-select' || type === 'text') {
       setWidgets((prev) => prev.map((w) => (w.id === widget.id ? { ...w, loading: false, data: [] } : w)));
     } else {
       fetchChartData(widget.id, widget.sourceId, type, widget.prompt, activeFilters, widget.config?.xAxisKey);
@@ -1899,7 +2011,7 @@ export function DashboardGenerator() {
 
   useEffect(() => {
     widgets
-      .filter((widget) => !widget.type.startsWith('filter'))
+      .filter((widget) => !widget.type.startsWith('filter') && widget.type !== 'text')
       .forEach((widget) => {
         fetchChartData(widget.id, widget.sourceId, widget.type, widget.prompt, activeFilters, widget.config?.xAxisKey);
       });
@@ -1908,6 +2020,20 @@ export function DashboardGenerator() {
   const dashboardBundle = bundleWidgetsForPrompt(widgets, activeFilters, sourceId);
   const activeWidget = widgets.find((w) => w.id === activeId);
   const lastAiMessage = [...aiMessages].reverse().find((m) => m.role === 'assistant') ?? null;
+
+  const handleDownloadPdf = async () => {
+    const gridEl = document.querySelector('[data-dashboard-grid]') as HTMLElement;
+    if (!gridEl) return;
+    const { default: html2canvas } = await import('html2canvas');
+    const { jsPDF } = await import('jspdf');
+    const canvas = await html2canvas(gridEl, { useCORS: true, scale: 1.5 });
+    const imgData = canvas.toDataURL('image/png');
+    const pdf = new jsPDF('landscape', 'mm', 'a4');
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
+    pdf.save('dashboard.pdf');
+  };
 
   return (
     <div className="flex-1 h-screen overflow-y-auto citi-gradient-bg citi-grid-pattern">
@@ -1945,6 +2071,18 @@ export function DashboardGenerator() {
               >
                 <Copy size={12} />
                 Export
+              </button>
+            )}
+
+            {/* Download PDF */}
+            {widgets.length > 0 && (
+              <button
+                onClick={handleDownloadPdf}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all"
+                title="Download dashboard as PDF"
+              >
+                <FileDown size={12} />
+                PDF
               </button>
             )}
 
@@ -2028,7 +2166,7 @@ export function DashboardGenerator() {
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-3 gap-4 auto-rows-auto">
+              <div className="grid grid-cols-3 gap-4 auto-rows-auto" data-dashboard-grid>
                 <AnimatePresence>
                   {widgets.map((widget) => (
                     <SortableWidget

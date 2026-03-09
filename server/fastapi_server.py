@@ -28,7 +28,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 # LM Studio Ollama-compatible endpoint (port 11434)
 LMSTUDIO_BASE_URL = "http://127.0.0.1:11434"
-LMSTUDIO_MODEL = "qwen/qwen3-vl-8b"
+LMSTUDIO_MODEL = "gpt"
 
 # Create a full trade overview with KPIs, bar chart, and filters	KPI + bar chart + filter-select widgets
 # Show me a pie chart of industry distribution and a monthly area trend	Pie + area chart
@@ -38,6 +38,11 @@ LMSTUDIO_MODEL = "qwen/qwen3-vl-8b"
 # Add KPI for total value, show previous vs current as line chart	KPI + multi-line chart
 # Add a range filter for trade value and a pie by products	Filter-range + pie chart
 # Show me just the top 3 metrics as KPI cards	3 × KPI cards
+# Show all trade rows in a grid table	Full-width grid widget
+# Add a grid of all transactions filtered by region	Grid widget (filtered)
+# Add a text summary of the current trade data	AI-generated text/report block
+# Write an executive summary of manufacturing risk trends	Text widget (narrative insight)
+# Build a dashboard with a grid, a bar chart, and a text analysis section	Grid + bar + text widgets
 
 
 def _get_llm():
@@ -464,6 +469,14 @@ def build_dashboard_response(
         values = [int(row.get("value", 0)) for row in rows]
         return [min(values), max(values)]
 
+    if widget_type == "text":
+        # Text widgets carry no data row; content is stored in the prompt field.
+        return []
+
+    if widget_type == "grid":
+        # Return all columns from each row as-is; frontend renders a full table.
+        return [dict(row) for row in rows]
+
     if widget_type == "pie":
         grouped: Dict[str, int] = {}
         # Use caller-supplied key first, then auto-detect from first string column
@@ -599,10 +612,7 @@ async def get_dashboard_options(payload: DashboardOptionsRequest):
     }
 
 
-
-
-
-#  AI Dashboard Generation  Pydantic output schema 
+#  AI Dashboard Generation  Pydantic output schema
 
 
 class _WidgetType(str, Enum):
@@ -612,6 +622,8 @@ class _WidgetType(str, Enum):
     pie = "pie"
     heatmap = "heatmap"
     kpi = "kpi"
+    grid = "grid"
+    text = "text"
     filter_select = "filter-select"
     filter_range = "filter-range"
 
@@ -629,7 +641,9 @@ class _WidgetAction(BaseModel):
     """A single widget to add to the dashboard."""
 
     widgetType: _WidgetType = Field(description="The chart or widget type to render.")
-    title: str = Field(description="Short, descriptive title for the widget (3-5 words).")
+    title: str = Field(
+        description="Short, descriptive title for the widget (3-5 words)."
+    )
     prompt: str = Field(
         description=(
             "What data to show. "
@@ -639,8 +653,8 @@ class _WidgetAction(BaseModel):
     span: Literal[1, 2, 3] = Field(
         description=(
             "Width: 1=small (kpi/pie/filter), "
-            "2=half-width (bar/area/line default), "
-            "3=full-width (heatmap)."
+            "2=half-width (bar/area/line/grid default), "
+            "3=full-width (heatmap/text)."
         )
     )
     xAxisKey: _XAxisKey = Field(
@@ -676,6 +690,18 @@ Available data columns for source "{source_id}":
   value             - numeric trade value (primary metric)
   prev              - previous-period value (comparison / trend)
 
+Available widget types:
+  bar           - bar chart comparing values across categories (span 2)
+  area          - area/trend chart over time (span 2)
+  line          - line chart, good for multi-series (span 2)
+  pie           - pie/donut chart for distributions (span 1)
+  heatmap       - color-intensity table across two dimensions (span 3)
+  kpi           - single headline metric card (span 1)
+  grid          - paginated tabular data view showing all columns (span 2)
+  text          - report/analysis text block for narrative insights (span 3)
+  filter-select - dropdown cross-filter (span 1)
+  filter-range  - numeric range slider filter (span 1)
+
 Current dashboard widgets: {existing_widgets}
 
 User request: {user_message}
@@ -684,9 +710,10 @@ Choose xAxisKey based on what the user wants to group by:
   monthly trend -> name | by industry -> industries | by product -> products
   by region -> region | by country -> country | by trade direction -> imports_exports
 
-Use span=1 for kpi/pie/filter, span=2 for bar/area/line, span=3 for heatmap.
+Span guidelines: 1 for kpi/pie/filter, 2 for bar/area/line/grid, 3 for heatmap/text.
+For text widgets set xAxisKey=name (not used for rendering).
+For grid widgets, use xAxisKey=name to load all rows.
 """
-
 
 
 @app.post("/dashboard/ai-generate")
@@ -736,6 +763,76 @@ async def ai_generate_dashboard(payload: AiGenerateRequest):
             status_code=500,
             content={"ok": False, "error": str(exc)},
         )
+
+
+# ── Text / Report block generation ────────────────────────────────────────────
+
+
+class TextGenerateRequest(BaseModel):
+    source: str = "global-trade"
+    title: str = ""
+    prompt: str = ""
+    filters: Optional[Dict[str, Any]] = None
+
+
+_TEXT_SYSTEM_PROMPT = """You are a financial analyst writing a concise dashboard report section for CitiForge.
+
+Data source: {source_id}
+Section title: {title}
+User instruction: {prompt}
+
+Summary statistics from the current dataset (after filters applied):
+  Total rows: {total_rows}
+  Value range: {min_val:,} – {max_val:,}
+  Industries in view: {industries}
+  Regions in view: {regions}
+
+Write 2–4 sentences of plain-language analysis suitable for an executive dashboard.
+Be specific about the numbers where possible. Do not use markdown headings or bullet points.
+"""
+
+
+@app.post("/dashboard/text-generate")
+async def generate_text_content(payload: TextGenerateRequest):
+    """Generate an AI-written report paragraph for a Text widget."""
+    source_record = get_dashboard_source(payload.source)
+    rows = apply_dashboard_filters(source_record["rows"], payload.filters or {})
+
+    values = [
+        int(r.get("value", 0)) for r in rows if isinstance(r.get("value"), (int, float))
+    ]
+    min_val = min(values) if values else 0
+    max_val = max(values) if values else 0
+    industries = sorted(
+        {str(r.get("industries", "")) for r in rows if r.get("industries")}
+    )
+    regions = sorted({str(r.get("region", "")) for r in rows if r.get("region")})
+
+    system_content = _TEXT_SYSTEM_PROMPT.format(
+        source_id=payload.source,
+        title=payload.title or "Report Section",
+        prompt=payload.prompt or "Summarise the current data view.",
+        total_rows=len(rows),
+        min_val=min_val,
+        max_val=max_val,
+        industries=", ".join(industries) if industries else "all",
+        regions=", ".join(regions) if regions else "all",
+    )
+
+    try:
+        llm = _get_llm()
+        result = await llm.ainvoke([SystemMessage(content=system_content)])
+        text_content = result.content if hasattr(result, "content") else str(result)
+        return {"ok": True, "text": text_content.strip()}
+    except Exception as exc:
+        # Fallback: return a simple stats-based summary without LLM
+        fallback = (
+            f"This section covers {len(rows)} data point(s) for {payload.source.replace('-', ' ').title()}. "
+            f"Trade values range from {min_val:,} to {max_val:,}. "
+            f"Industries represented: {', '.join(industries) if industries else 'N/A'}. "
+            f"Regions in view: {', '.join(regions) if regions else 'N/A'}."
+        )
+        return {"ok": True, "text": fallback, "fallback": True, "error": str(exc)}
 
 
 def build_suggested_queries(input_text: str) -> List[Dict[str, Any]]:
