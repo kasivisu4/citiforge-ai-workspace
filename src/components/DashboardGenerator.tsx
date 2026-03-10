@@ -922,9 +922,16 @@ function SortableWidget({
       {/* Content */}
       <div className={isText ? 'flex-1 min-h-[140px] p-4' : 'h-[200px] shrink-0 p-4'}>
         {widget.loading ? (
-          <div className="flex items-center justify-center h-full gap-2 text-muted-foreground">
-            <Loader2 size={18} className="animate-spin" />
-            <span className="text-xs">Generating…</span>
+          <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <Loader2 size={16} className="animate-spin shrink-0" />
+              <span className="text-xs font-medium">Building…</span>
+            </div>
+            {widget.prompt && (
+              <p className="text-[11px] text-muted-foreground/70 text-center italic max-w-[90%] leading-relaxed line-clamp-3">
+                {widget.prompt}
+              </p>
+            )}
           </div>
         ) : isText ? (
           textEditMode ? (
@@ -1112,19 +1119,30 @@ function DashboardCommandBar({
 }) {
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const prevLoadingRef = useRef(false);
+  const [showSuggestions, setShowSuggestions] = useState(true);
+
+  useEffect(() => {
+    if (prevLoadingRef.current && !aiLoading) {
+      setDraft('');
+    }
+    prevLoadingRef.current = aiLoading;
+  }, [aiLoading]);
 
   const handleSend = () => {
     const text = draft.trim();
     if (!text || aiLoading) return;
-    setDraft('');
     onAiSend(text);
   };
 
   const SUGGESTIONS = [
-    'Full trade overview with KPIs, bar chart and filters',
-    'Monthly trend area chart + industry pie chart',
-    'Heatmap of all metrics across months',
-    'Add a filter for imports/exports and KPI',
+    'Create a full trade overview with KPIs, bar chart, and filters with reporting text',
+    'Show me a pie chart of industry distribution and a monthly area trend',
+    'Add a heatmap of all trade metrics across months',
+    'Build a complete manufacturing risk dashboard',
+    'Add KPI for total value, show previous vs current as line chart',
+    'Add a range filter for trade value and a pie by products',
+    'Show me just the top 3 metrics as KPI cards',
   ];
 
   return (
@@ -1160,7 +1178,7 @@ function DashboardCommandBar({
       </div>
 
       {/* Status line: last AI response */}
-      <AnimatePresence mode="wait">
+      <AnimatePresence>
         {lastAiMessage && (
           <motion.div
             key={lastAiMessage.id}
@@ -1181,15 +1199,19 @@ function DashboardCommandBar({
             )}
           </motion.div>
         )}
-        {!lastAiMessage && (
+      </AnimatePresence>
+
+      {/* Suggestions — always visible, dismissible */}
+      <AnimatePresence>
+        {showSuggestions && (
           <motion.div
             key="suggestions"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, height: 0 }}
             className="flex items-center gap-1.5 flex-wrap px-1"
           >
-            <span className="text-[11px] text-muted-foreground/60">Try:</span>
+            <span className="text-[11px] text-muted-foreground/60 shrink-0">Try:</span>
             {SUGGESTIONS.map((s) => (
               <button
                 key={s}
@@ -1199,6 +1221,23 @@ function DashboardCommandBar({
                 {s}
               </button>
             ))}
+            <button
+              onClick={() => setShowSuggestions(false)}
+              title="Hide suggestions"
+              className="ml-0.5 text-muted-foreground/40 hover:text-muted-foreground transition-colors shrink-0"
+            >
+              <X size={10} />
+            </button>
+          </motion.div>
+        )}
+        {!showSuggestions && (
+          <motion.div key="restore" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="px-1">
+            <button
+              onClick={() => setShowSuggestions(true)}
+              className="text-[10px] text-muted-foreground/40 hover:text-muted-foreground transition-colors underline-offset-2 hover:underline"
+            >
+              show suggestions
+            </button>
           </motion.div>
         )}
       </AnimatePresence>
@@ -1398,10 +1437,18 @@ function _AIChatPanel({
 
   const SUGGESTIONS = [
     'Create a full trade overview with KPIs, bar chart, and filters',
-    'Add a pie chart of industry distribution',
-    'Show monthly trade trend as area chart',
-    'Add KPI for total trade value and a heatmap',
-    'Give me a filter for region and a bar chart by country',
+    'Show me a pie chart of industry distribution and a monthly area trend',
+    'Add a heatmap of all trade metrics across months',
+    'Give me a filter for imports/exports and a bar chart by region',
+    'Build a complete manufacturing risk dashboard',
+    'Add KPI for total value, show previous vs current as line chart',
+    'Add a range filter for trade value and a pie by products',
+    'Show me just the top 3 metrics as KPI cards',
+    'Show all trade rows in a grid table',
+    'Add a grid of all transactions filtered by region',
+    'Add a text summary of the current trade data',
+    'Write an executive summary of manufacturing risk trends',
+    'Build a dashboard with a grid, a bar chart, and a text analysis section',
   ];
 
   return (
@@ -2022,25 +2069,91 @@ export function DashboardGenerator() {
   const lastAiMessage = [...aiMessages].reverse().find((m) => m.role === 'assistant') ?? null;
 
   const handleDownloadPdf = async () => {
-    const gridEl = document.querySelector('[data-dashboard-grid]') as HTMLElement;
-    if (!gridEl) return;
+    const rootEl = document.querySelector('[data-pdf-root]') as HTMLElement;
+    if (!rootEl) return;
+
+    const scrollContainer = document.querySelector('[data-dashboard-scroll]') as HTMLElement;
     const { default: html2canvas } = await import('html2canvas');
     const { jsPDF } = await import('jspdf');
-    const canvas = await html2canvas(gridEl, { useCORS: true, scale: 1.5 });
+
+    // Show the clean PDF title bar
+    const pdfTitle = rootEl.querySelector<HTMLElement>('[data-pdf-title]');
+    if (pdfTitle) pdfTitle.style.display = 'flex';
+
+    // Hide all UI chrome elements (header, command bar, filters, etc.)
+    const hidden = Array.from(rootEl.querySelectorAll<HTMLElement>('[data-pdf-hide]'));
+    hidden.forEach((el) => { el.style.display = 'none'; });
+
+    // Expand outer scroll container so full content is in layout flow
+    const savedHeight = scrollContainer?.style.height ?? '';
+    const savedOverflow = scrollContainer?.style.overflow ?? '';
+    const savedScrollTop = scrollContainer?.scrollTop ?? 0;
+    if (scrollContainer) {
+      scrollContainer.style.height = 'auto';
+      scrollContainer.style.overflow = 'visible';
+      scrollContainer.scrollTop = 0;
+    }
+
+    await new Promise((r) => setTimeout(r, 100));
+
+    const canvas = await html2canvas(rootEl, {
+      useCORS: true,
+      allowTaint: true,
+      scale: 1.5,
+      scrollX: 0,
+      scrollY: 0,
+    });
+
+    // Restore everything
+    if (pdfTitle) pdfTitle.style.display = 'none';
+    hidden.forEach((el) => { el.style.display = ''; });
+    if (scrollContainer) {
+      scrollContainer.style.height = savedHeight;
+      scrollContainer.style.overflow = savedOverflow;
+      scrollContainer.scrollTop = savedScrollTop;
+    }
+
     const imgData = canvas.toDataURL('image/png');
     const pdf = new jsPDF('landscape', 'mm', 'a4');
     const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
     const imgHeight = (canvas.height * pdfWidth) / canvas.width;
-    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
+
+    if (imgHeight <= pdfHeight) {
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeight);
+    } else {
+      let yOffset = 0;
+      while (yOffset < imgHeight) {
+        if (yOffset > 0) pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, -yOffset, pdfWidth, imgHeight);
+        yOffset += pdfHeight;
+      }
+    }
+
     pdf.save('dashboard.pdf');
   };
 
   return (
-    <div className="flex-1 h-screen overflow-y-auto citi-gradient-bg citi-grid-pattern">
-      <div className="p-6 max-w-[1800px] mx-auto">
+    <div data-dashboard-scroll className="flex-1 h-screen overflow-y-auto citi-gradient-bg citi-grid-pattern">
+      <div data-pdf-root className="p-6 max-w-[1800px] mx-auto">
+
+        {/* PDF-only title bar — hidden in normal view, shown during export */}
+        <div
+          data-pdf-title
+          style={{ display: 'none' }}
+          className="flex items-center gap-3 mb-4 pb-3 border-b border-border"
+        >
+          <div className="w-7 h-7 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
+            <LayoutGrid size={14} className="text-primary" />
+          </div>
+          <div>
+            <p className="text-base font-bold text-foreground leading-tight">CitiForge — Dashboard Export</p>
+            <p className="text-[10px] text-muted-foreground">{dataSources.find(s => s.id === sourceId)?.label ?? sourceId} · {new Date().toLocaleDateString()}</p>
+          </div>
+        </div>
 
         {/* ── Header ────────────────────────────────────────────────────────── */}
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 mb-6">
+        <motion.div data-pdf-hide initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3 mb-6">
           <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center shrink-0">
             <LayoutGrid size={16} className="text-primary" />
           </div>
@@ -2106,16 +2219,19 @@ export function DashboardGenerator() {
         </motion.div>
 
         {/* ── Command Bar ───────────────────────────────────────────────────── */}
+        <div data-pdf-hide>
         <DashboardCommandBar
           onAiSend={handleAiSend}
           onQuickAdd={handleAddWidget}
           aiLoading={aiLoading}
           lastAiMessage={lastAiMessage}
         />
+        </div>
 
         {/* ── Active filters ────────────────────────────────────────────────── */}
         {activeFilters.filter((f) => f.value && f.value !== 'All').length > 0 && (
           <motion.div
+            data-pdf-hide
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             className="flex items-center gap-2 flex-wrap mb-4"

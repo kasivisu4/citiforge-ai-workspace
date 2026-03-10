@@ -47,7 +47,7 @@ LMSTUDIO_MODEL = "gpt"
 
 def _get_llm():
     """Return a LangChain chat model pointed at the local LM Studio instance.
-    Prefers the OpenAI-compatible endpoint (more broadly supported by LM Studio
+    Prefers the OpenAI-compatible endpoint (more broadly    supported by LM Studio
     Ollama mode), which is served at <base_url>/v1.
     """
     if _OPENAI_COMPAT_AVAILABLE:
@@ -678,47 +678,225 @@ class _DashboardAiResponse(BaseModel):
     )
 
 
-_AI_SYSTEM_PROMPT = """You are an expert dashboard builder assistant for a financial trade analytics platform called CitiForge.
+_AI_SYSTEM_PROMPT = """You are a dashboard widget generator for CitiForge (financial trade analytics).
 
-Available data columns for source "{source_id}":
-  name              - month label (Jan-Jul)  <- time-series / monthly trends
-  imports_exports   - "Imports" or "Exports"
-  industries        - {industries}
-  products          - {products}
-  region            - APAC, EMEA, Americas
-  country           - individual country names
-  value             - numeric trade value (primary metric)
-  prev              - previous-period value (comparison / trend)
+OUTPUT RULE: Respond with ONLY a single valid JSON object. No markdown fences, no prose before or after, no reasoning text, no comments.
 
-Available widget types:
-  bar           - bar chart comparing values across categories (span 2)
-  area          - area/trend chart over time (span 2)
-  line          - line chart, good for multi-series (span 2)
-  pie           - pie/donut chart for distributions (span 1)
-  heatmap       - color-intensity table across two dimensions (span 3)
-  kpi           - single headline metric card (span 1)
-  grid          - paginated tabular data view showing all columns (span 2)
-  text          - report/analysis text block for narrative insights (span 3)
-  filter-select - dropdown cross-filter (span 1)
-  filter-range  - numeric range slider filter (span 1)
+JSON SCHEMA (follow exactly):
+{{
+  "message": "<1-2 sentence summary of what is being added>",
+  "actions": [
+    {{
+      "widgetType": "<bar|area|line|pie|heatmap|kpi|grid|text|filter-select|filter-range>",
+      "title": "<3-5 word title>",
+      "prompt": "<what data to show; for filter-select/filter-range use the column name>",
+      "span": <1|2|3>,
+      "xAxisKey": "<name|imports_exports|industries|products|region|country>"
+    }}
+  ]
+}}
 
-Current dashboard widgets: {existing_widgets}
+SPAN RULES (mandatory):
+  kpi=1  pie=1  filter-select=1  filter-range=1
+  bar=2  area=2  line=2  grid=2
+  heatmap=3  text=3
 
-User request: {user_message}
+XAXISKEY RULES:
+  monthly / time-series trend  →  name
+  group by industry             →  industries
+  group by product              →  products
+  group by region               →  region
+  group by country              →  country
+  imports vs exports            →  imports_exports
+  text or grid (all rows)       →  name
 
-Choose xAxisKey based on what the user wants to group by:
-  monthly trend -> name | by industry -> industries | by product -> products
-  by region -> region | by country -> country | by trade direction -> imports_exports
+DATA SOURCE: {source_id}
+COLUMNS: name (Jan-Jul months), imports_exports (Imports|Exports),
+  industries ({industries}), products ({products}),
+  region (APAC|EMEA|Americas), country, value (trade value), prev (prior period)
 
-Span guidelines: 1 for kpi/pie/filter, 2 for bar/area/line/grid, 3 for heatmap/text.
-For text widgets set xAxisKey=name (not used for rendering).
-For grid widgets, use xAxisKey=name to load all rows.
+EXISTING WIDGETS: {existing_widgets}
+
+EXAMPLE — user asks "KPI and bar chart by industry":
+{{"message":"Adding a total value KPI and a bar chart by industry.","actions":[{{"widgetType":"kpi","title":"Total Trade Value","prompt":"Headline total trade value","span":1,"xAxisKey":"name"}},{{"widgetType":"bar","title":"Trade by Industry","prompt":"Compare trade value by industry","span":2,"xAxisKey":"industries"}}]}}
+
+EXAMPLE — user asks "full overview with KPIs, bar chart, and filters":
+{{"message":"Building a full trade overview with KPI cards, a bar chart, and filter controls.","actions":[{{"widgetType":"kpi","title":"Total Trade Value","prompt":"Headline total trade value","span":1,"xAxisKey":"name"}},{{"widgetType":"kpi","title":"YoY Change","prompt":"Period-over-period trade change","span":1,"xAxisKey":"name"}},{{"widgetType":"bar","title":"Trade by Industry","prompt":"Compare trade value across industries","span":2,"xAxisKey":"industries"}},{{"widgetType":"filter-select","title":"Filter: Type","prompt":"imports_exports","span":1,"xAxisKey":"imports_exports"}},{{"widgetType":"filter-select","title":"Filter: Industry","prompt":"industries","span":1,"xAxisKey":"industries"}}]}}
+
+USER REQUEST: {user_message}
+
+JSON output:
 """
+
+
+# ── helpers for rule-based fallback ──────────────────────────────────────────
+
+
+def _w(widget_type: str, title: str, prompt: str, span: int, x: str) -> dict:
+    return {
+        "type": "add_widget",
+        "widgetType": widget_type,
+        "title": title,
+        "prompt": prompt,
+        "span": span,
+        "xAxisKey": x,
+    }
+
+
+def _rule_based_widgets(message: str) -> list:
+    """Keyword-based widget builder used when LLM returns no actions."""
+    m = message.lower()
+    widgets: list = []
+
+    if any(k in m for k in ("full", "overview", "complete")):
+        return [
+            _w("kpi", "Total Trade Value", "Headline total trade value", 1, "name"),
+            _w("kpi", "YoY Change", "Period-over-period trade change", 1, "name"),
+            _w(
+                "bar",
+                "Trade by Industry",
+                "Compare trade value by industry",
+                2,
+                "industries",
+            ),
+            _w(
+                "filter-select", "Filter: Type", "imports_exports", 1, "imports_exports"
+            ),
+            _w("filter-select", "Filter: Industry", "industries", 1, "industries"),
+        ]
+    if "manufacturing" in m and "risk" in m:
+        return [
+            _w("kpi", "Risk Score", "Manufacturing risk score", 1, "name"),
+            _w("kpi", "Total Value", "Headline trade value", 1, "name"),
+            _w(
+                "heatmap",
+                "Risk Heatmap",
+                "Color intensity across months and metrics",
+                3,
+                "name",
+            ),
+            _w("bar", "Value by Country", "Compare value by country", 2, "country"),
+            _w("filter-select", "Filter: Industry", "industries", 1, "industries"),
+        ]
+
+    x_key = (
+        "country"
+        if "country" in m
+        else (
+            "region"
+            if "region" in m
+            else (
+                "imports_exports"
+                if any(k in m for k in ("import", "export"))
+                else (
+                    "industries"
+                    if "industr" in m
+                    else "products" if "product" in m else "name"
+                )
+            )
+        )
+    )
+
+    if "kpi" in m or "metric" in m or "card" in m:
+        count = 3 if ("top 3" in m or "three" in m) else 1
+        for i in range(count):
+            widgets.append(
+                _w(
+                    "kpi",
+                    f"KPI {i+1}" if count > 1 else "Key Metric",
+                    "Headline trade value",
+                    1,
+                    "name",
+                )
+            )
+    if any(k in m for k in ("bar chart", "bar", "column")):
+        widgets.append(
+            _w(
+                "bar",
+                "Bar Chart",
+                f"Compare trade value by {x_key.replace('_',' ')}",
+                2,
+                x_key,
+            )
+        )
+    if any(k in m for k in ("area", "trend")):
+        widgets.append(_w("area", "Trend Chart", "Monthly trend over time", 2, "name"))
+    if any(k in m for k in ("line chart", "line", "previous vs", "prev vs")):
+        widgets.append(
+            _w("line", "Line Chart", "Multi-series trend comparison", 2, "name")
+        )
+    if "pie" in m:
+        pie_x = (
+            "industries"
+            if "industr" in m
+            else "products" if "product" in m else "imports_exports"
+        )
+        widgets.append(_w("pie", "Distribution", f"Distribution by {pie_x}", 1, pie_x))
+    if "heatmap" in m:
+        widgets.append(
+            _w(
+                "heatmap",
+                "Heatmap",
+                "Color intensity across months and metrics",
+                3,
+                "name",
+            )
+        )
+    if "grid" in m or "table" in m or "rows" in m:
+        widgets.append(
+            _w("grid", "Data Grid", "All trade rows in tabular view", 2, "name")
+        )
+    if any(k in m for k in ("text", "summary", "report", "executive")):
+        widgets.append(
+            _w(
+                "text",
+                "Report Summary",
+                "Executive summary of current trade data",
+                3,
+                "name",
+            )
+        )
+    if "filter" in m and "range" not in m:
+        widgets.append(
+            _w("filter-select", "Filter: Industry", "industries", 1, "industries")
+        )
+    if "range filter" in m or "range" in m:
+        widgets.append(_w("filter-range", "Trade Value Range", "value", 1, "name"))
+
+    if not widgets:
+        widgets = [
+            _w("kpi", "Total Trade Value", "Headline total trade value", 1, "name"),
+            _w(
+                "bar",
+                "Trade by Industry",
+                "Compare trade value by industry",
+                2,
+                "industries",
+            ),
+            _w(
+                "filter-select", "Filter: Type", "imports_exports", 1, "imports_exports"
+            ),
+        ]
+    return widgets
+
+
+def _extract_json(text: str) -> dict | None:
+    """Pull a JSON object out of a possibly noisy LLM response string."""
+    import re
+
+    text = re.sub(r"```[a-zA-Z]*\n?", "", text).strip()
+    match = re.search(r"(\{.*\})", text, re.DOTALL)
+    if not match:
+        return None
+    try:
+        return json.loads(match.group(1))
+    except Exception:
+        return None
 
 
 @app.post("/dashboard/ai-generate")
 async def ai_generate_dashboard(payload: AiGenerateRequest):
-    """Use LangChain structured output to generate dashboard widget actions."""
+    """Generate dashboard widget actions via LLM with rule-based fallback."""
     source_record = get_dashboard_source(payload.sourceId)
     schema = source_record.get("schema", {})
 
@@ -729,7 +907,7 @@ async def ai_generate_dashboard(payload: AiGenerateRequest):
         else "none"
     )
 
-    system_content = _AI_SYSTEM_PROMPT.format(
+    prompt_text = _AI_SYSTEM_PROMPT.format(
         source_id=payload.sourceId,
         industries=", ".join(v for v in schema.get("industries", []) if v != "All"),
         products=", ".join(v for v in schema.get("products", []) if v != "All"),
@@ -737,15 +915,18 @@ async def ai_generate_dashboard(payload: AiGenerateRequest):
         user_message=payload.message,
     )
 
+    actions: list = []
+    response_message = ""
+    used_fallback = False
+
+    # ── Tier 1: structured output ──────────────────────────────────────────────
     try:
         structured_llm = _get_llm().with_structured_output(_DashboardAiResponse)
         result: _DashboardAiResponse = await structured_llm.ainvoke(
-            [SystemMessage(content=system_content)]
+            [HumanMessage(content=prompt_text)]
         )
-        return {
-            "ok": True,
-            "message": result.message,
-            "actions": [
+        if result.actions:
+            actions = [
                 {
                     "type": "add_widget",
                     "widgetType": a.widgetType.value,
@@ -755,14 +936,52 @@ async def ai_generate_dashboard(payload: AiGenerateRequest):
                     "xAxisKey": a.xAxisKey.value,
                 }
                 for a in result.actions
-            ],
-        }
+            ]
+            response_message = result.message
+    except Exception:
+        pass
 
-    except Exception as exc:
-        return JSONResponse(
-            status_code=500,
-            content={"ok": False, "error": str(exc)},
-        )
+    # ── Tier 2: raw JSON parse from plain LLM call ────────────────────────────
+    if not actions:
+        try:
+            llm = _get_llm()
+            raw = await llm.ainvoke([HumanMessage(content=prompt_text)])
+            raw_text = raw.content if hasattr(raw, "content") else str(raw)
+            parsed = _extract_json(raw_text)
+            if parsed and isinstance(parsed.get("actions"), list) and parsed["actions"]:
+                valid_types = {t.value for t in _WidgetType}
+                valid_keys = {k.value for k in _XAxisKey}
+                for a in parsed["actions"]:
+                    if (
+                        a.get("widgetType") in valid_types
+                        and a.get("xAxisKey") in valid_keys
+                    ):
+                        actions.append(
+                            {
+                                "type": "add_widget",
+                                "widgetType": a["widgetType"],
+                                "title": str(a.get("title", a["widgetType"])),
+                                "prompt": str(a.get("prompt", "")),
+                                "span": int(a.get("span", 2)),
+                                "xAxisKey": a["xAxisKey"],
+                            }
+                        )
+                response_message = str(parsed.get("message", ""))
+        except Exception:
+            pass
+
+    # ── Tier 3: rule-based fallback ───────────────────────────────────────────
+    if not actions:
+        actions = _rule_based_widgets(payload.message)
+        response_message = f'Built your dashboard from: "{payload.message}"'
+        used_fallback = True
+
+    return {
+        "ok": True,
+        "message": response_message or f"Added {len(actions)} widget(s).",
+        "actions": actions,
+        "fallback": used_fallback,
+    }
 
 
 # ── Text / Report block generation ────────────────────────────────────────────
