@@ -1136,7 +1136,7 @@ function DashboardCommandBar({
   };
 
   const SUGGESTIONS = [
-    'Create a full trade overview with KPIs, bar chart, and filters with reporting text',
+    'Create a full trade overview with KPIs, bar chart, and filters',
     'Show me a pie chart of industry distribution and a monthly area trend',
     'Add a heatmap of all trade metrics across months',
     'Build a complete manufacturing risk dashboard',
