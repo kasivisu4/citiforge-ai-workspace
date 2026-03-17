@@ -179,6 +179,8 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "India",
                 "value": 4100,
                 "prev": 3800,
+                "margin_pct": 12.4,
+                "deal_count": 38,
             },
             {
                 "name": "Feb",
@@ -189,6 +191,8 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "Germany",
                 "value": 4300,
                 "prev": 4020,
+                "margin_pct": 13.1,
+                "deal_count": 41,
             },
             {
                 "name": "Mar",
@@ -199,6 +203,8 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "Japan",
                 "value": 4550,
                 "prev": 4200,
+                "margin_pct": 11.8,
+                "deal_count": 45,
             },
             {
                 "name": "Apr",
@@ -209,6 +215,8 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "USA",
                 "value": 4700,
                 "prev": 4400,
+                "margin_pct": 14.2,
+                "deal_count": 52,
             },
             {
                 "name": "May",
@@ -219,6 +227,8 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "UAE",
                 "value": 5200,
                 "prev": 4880,
+                "margin_pct": 10.5,
+                "deal_count": 47,
             },
             {
                 "name": "Jun",
@@ -229,6 +239,8 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "Mexico",
                 "value": 5450,
                 "prev": 5100,
+                "margin_pct": 12.9,
+                "deal_count": 60,
             },
             {
                 "name": "Jul",
@@ -239,6 +251,68 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "Singapore",
                 "value": 5680,
                 "prev": 5300,
+                "margin_pct": 15.0,
+                "deal_count": 64,
+            },
+            {
+                "name": "Aug",
+                "imports_exports": "Exports",
+                "industries": "Electronics",
+                "products": "Trade Finance",
+                "region": "APAC",
+                "country": "South Korea",
+                "value": 5820,
+                "prev": 5500,
+                "margin_pct": 13.7,
+                "deal_count": 58,
+            },
+            {
+                "name": "Sep",
+                "imports_exports": "Imports",
+                "industries": "Energy",
+                "products": "Commodity Credit",
+                "region": "EMEA",
+                "country": "Saudi Arabia",
+                "value": 6050,
+                "prev": 5700,
+                "margin_pct": 9.8,
+                "deal_count": 55,
+            },
+            {
+                "name": "Oct",
+                "imports_exports": "Exports",
+                "industries": "Pharma",
+                "products": "Trade Finance",
+                "region": "Americas",
+                "country": "Brazil",
+                "value": 6300,
+                "prev": 5900,
+                "margin_pct": 14.5,
+                "deal_count": 70,
+            },
+            {
+                "name": "Nov",
+                "imports_exports": "Imports",
+                "industries": "Automotive",
+                "products": "Supply Chain Finance",
+                "region": "APAC",
+                "country": "China",
+                "value": 6100,
+                "prev": 5800,
+                "margin_pct": 12.2,
+                "deal_count": 66,
+            },
+            {
+                "name": "Dec",
+                "imports_exports": "Exports",
+                "industries": "Electronics",
+                "products": "Cross-border Payments",
+                "region": "EMEA",
+                "country": "UK",
+                "value": 6450,
+                "prev": 6100,
+                "margin_pct": 13.8,
+                "deal_count": 75,
             },
         ],
     },
@@ -271,6 +345,8 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "Turkey",
                 "value": 3600,
                 "prev": 3400,
+                "risk_score": 62,
+                "exposure_pct": 18.5,
             },
             {
                 "name": "Feb",
@@ -281,6 +357,8 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "China",
                 "value": 3900,
                 "prev": 3650,
+                "risk_score": 55,
+                "exposure_pct": 21.0,
             },
             {
                 "name": "Mar",
@@ -291,6 +369,8 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "Brazil",
                 "value": 4200,
                 "prev": 3850,
+                "risk_score": 48,
+                "exposure_pct": 16.3,
             },
             {
                 "name": "Apr",
@@ -301,6 +381,8 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "Vietnam",
                 "value": 4380,
                 "prev": 4100,
+                "risk_score": 51,
+                "exposure_pct": 14.8,
             },
             {
                 "name": "May",
@@ -311,6 +393,8 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "Poland",
                 "value": 4620,
                 "prev": 4300,
+                "risk_score": 44,
+                "exposure_pct": 20.1,
             },
             {
                 "name": "Jun",
@@ -321,6 +405,8 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "Canada",
                 "value": 4850,
                 "prev": 4500,
+                "risk_score": 39,
+                "exposure_pct": 17.6,
             },
             {
                 "name": "Jul",
@@ -331,6 +417,842 @@ DASHBOARD_DATA_SOURCES: Dict[str, Dict[str, Any]] = {
                 "country": "Thailand",
                 "value": 5080,
                 "prev": 4720,
+                "risk_score": 43,
+                "exposure_pct": 15.9,
+            },
+            {
+                "name": "Aug",
+                "imports_exports": "Exports",
+                "industries": "Textiles",
+                "products": "Receivables",
+                "region": "EMEA",
+                "country": "Bangladesh",
+                "value": 5250,
+                "prev": 4980,
+                "risk_score": 57,
+                "exposure_pct": 22.4,
+            },
+            {
+                "name": "Sep",
+                "imports_exports": "Imports",
+                "industries": "Metals",
+                "products": "Letters of Credit",
+                "region": "Americas",
+                "country": "Argentina",
+                "value": 5100,
+                "prev": 4850,
+                "risk_score": 68,
+                "exposure_pct": 19.2,
+            },
+            {
+                "name": "Oct",
+                "imports_exports": "Exports",
+                "industries": "Chemicals",
+                "products": "Insurance",
+                "region": "APAC",
+                "country": "India",
+                "value": 5380,
+                "prev": 5050,
+                "risk_score": 46,
+                "exposure_pct": 18.0,
+            },
+            {
+                "name": "Nov",
+                "imports_exports": "Imports",
+                "industries": "Industrial Goods",
+                "products": "Factoring",
+                "region": "EMEA",
+                "country": "Czech Rep.",
+                "value": 5620,
+                "prev": 5300,
+                "risk_score": 41,
+                "exposure_pct": 16.7,
+            },
+            {
+                "name": "Dec",
+                "imports_exports": "Exports",
+                "industries": "Textiles",
+                "products": "Receivables",
+                "region": "Americas",
+                "country": "Peru",
+                "value": 5800,
+                "prev": 5480,
+                "risk_score": 38,
+                "exposure_pct": 13.5,
+            },
+        ],
+    },
+    "citi-financial-summary": {
+        "label": "Citi Financial Summary (2020–2024)",
+        "schema": {
+            "period": ["All", "2024", "2023", "2022", "2021", "2020"],
+            "category": [
+                "All",
+                "Balance Sheet",
+                "Performance Metrics",
+                "Basel III Ratios",
+                "Capital",
+            ],
+            "segment": [
+                "All",
+                "Citigroup",
+                "Common Stockholders",
+                "Total Stockholders",
+            ],
+        },
+        "rows": [
+            # ── Balance Sheet ──────────────────────────────────────────────────
+            {
+                "name": "Total Assets",
+                "period": "2024",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 2352945,
+                "prev": 2411834,
+                "unit": "$M",
+                "metric": "Total Assets",
+            },
+            {
+                "name": "Total Assets",
+                "period": "2023",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 2411834,
+                "prev": 2416676,
+                "unit": "$M",
+                "metric": "Total Assets",
+            },
+            {
+                "name": "Total Assets",
+                "period": "2022",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 2416676,
+                "prev": 2291413,
+                "unit": "$M",
+                "metric": "Total Assets",
+            },
+            {
+                "name": "Total Assets",
+                "period": "2021",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 2291413,
+                "prev": 2260090,
+                "unit": "$M",
+                "metric": "Total Assets",
+            },
+            {
+                "name": "Total Assets",
+                "period": "2020",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 2260090,
+                "prev": 1951158,
+                "unit": "$M",
+                "metric": "Total Assets",
+            },
+            {
+                "name": "Total Deposits",
+                "period": "2024",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 1284458,
+                "prev": 1308681,
+                "unit": "$M",
+                "metric": "Total Deposits",
+            },
+            {
+                "name": "Total Deposits",
+                "period": "2023",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 1308681,
+                "prev": 1365954,
+                "unit": "$M",
+                "metric": "Total Deposits",
+            },
+            {
+                "name": "Total Deposits",
+                "period": "2022",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 1365954,
+                "prev": 1317230,
+                "unit": "$M",
+                "metric": "Total Deposits",
+            },
+            {
+                "name": "Total Deposits",
+                "period": "2021",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 1317230,
+                "prev": 1280671,
+                "unit": "$M",
+                "metric": "Total Deposits",
+            },
+            {
+                "name": "Total Deposits",
+                "period": "2020",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 1280671,
+                "prev": 1070590,
+                "unit": "$M",
+                "metric": "Total Deposits",
+            },
+            {
+                "name": "Long-term Debt",
+                "period": "2024",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 287300,
+                "prev": 286619,
+                "unit": "$M",
+                "metric": "Long-term Debt",
+            },
+            {
+                "name": "Long-term Debt",
+                "period": "2023",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 286619,
+                "prev": 271606,
+                "unit": "$M",
+                "metric": "Long-term Debt",
+            },
+            {
+                "name": "Long-term Debt",
+                "period": "2022",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 271606,
+                "prev": 254374,
+                "unit": "$M",
+                "metric": "Long-term Debt",
+            },
+            {
+                "name": "Long-term Debt",
+                "period": "2021",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 254374,
+                "prev": 271686,
+                "unit": "$M",
+                "metric": "Long-term Debt",
+            },
+            {
+                "name": "Long-term Debt",
+                "period": "2020",
+                "category": "Balance Sheet",
+                "segment": "Citigroup",
+                "value": 271686,
+                "prev": 231128,
+                "unit": "$M",
+                "metric": "Long-term Debt",
+            },
+            {
+                "name": "Common Equity",
+                "period": "2024",
+                "category": "Balance Sheet",
+                "segment": "Common Stockholders",
+                "value": 190748,
+                "prev": 187853,
+                "unit": "$M",
+                "metric": "Common Equity",
+            },
+            {
+                "name": "Common Equity",
+                "period": "2023",
+                "category": "Balance Sheet",
+                "segment": "Common Stockholders",
+                "value": 187853,
+                "prev": 182194,
+                "unit": "$M",
+                "metric": "Common Equity",
+            },
+            {
+                "name": "Common Equity",
+                "period": "2022",
+                "category": "Balance Sheet",
+                "segment": "Common Stockholders",
+                "value": 182194,
+                "prev": 182977,
+                "unit": "$M",
+                "metric": "Common Equity",
+            },
+            {
+                "name": "Common Equity",
+                "period": "2021",
+                "category": "Balance Sheet",
+                "segment": "Common Stockholders",
+                "value": 182977,
+                "prev": 179962,
+                "unit": "$M",
+                "metric": "Common Equity",
+            },
+            {
+                "name": "Common Equity",
+                "period": "2020",
+                "category": "Balance Sheet",
+                "segment": "Common Stockholders",
+                "value": 179962,
+                "prev": 175262,
+                "unit": "$M",
+                "metric": "Common Equity",
+            },
+            {
+                "name": "Total Equity",
+                "period": "2024",
+                "category": "Balance Sheet",
+                "segment": "Total Stockholders",
+                "value": 208598,
+                "prev": 205453,
+                "unit": "$M",
+                "metric": "Total Equity",
+            },
+            {
+                "name": "Total Equity",
+                "period": "2023",
+                "category": "Balance Sheet",
+                "segment": "Total Stockholders",
+                "value": 205453,
+                "prev": 201189,
+                "unit": "$M",
+                "metric": "Total Equity",
+            },
+            {
+                "name": "Total Equity",
+                "period": "2022",
+                "category": "Balance Sheet",
+                "segment": "Total Stockholders",
+                "value": 201189,
+                "prev": 201972,
+                "unit": "$M",
+                "metric": "Total Equity",
+            },
+            {
+                "name": "Total Equity",
+                "period": "2021",
+                "category": "Balance Sheet",
+                "segment": "Total Stockholders",
+                "value": 201972,
+                "prev": 199442,
+                "unit": "$M",
+                "metric": "Total Equity",
+            },
+            {
+                "name": "Total Equity",
+                "period": "2020",
+                "category": "Balance Sheet",
+                "segment": "Total Stockholders",
+                "value": 199442,
+                "prev": 196228,
+                "unit": "$M",
+                "metric": "Total Equity",
+            },
+            # ── Performance Metrics ────────────────────────────────────────────
+            {
+                "name": "ROTA (%)",
+                "period": "2024",
+                "category": "Performance Metrics",
+                "segment": "Citigroup",
+                "value": 0.51,
+                "prev": 0.38,
+                "unit": "%",
+                "metric": "Return on Avg Assets",
+            },
+            {
+                "name": "ROTA (%)",
+                "period": "2023",
+                "category": "Performance Metrics",
+                "segment": "Citigroup",
+                "value": 0.38,
+                "prev": 0.62,
+                "unit": "%",
+                "metric": "Return on Avg Assets",
+            },
+            {
+                "name": "ROTA (%)",
+                "period": "2022",
+                "category": "Performance Metrics",
+                "segment": "Citigroup",
+                "value": 0.62,
+                "prev": 0.94,
+                "unit": "%",
+                "metric": "Return on Avg Assets",
+            },
+            {
+                "name": "ROTA (%)",
+                "period": "2021",
+                "category": "Performance Metrics",
+                "segment": "Citigroup",
+                "value": 0.94,
+                "prev": 0.50,
+                "unit": "%",
+                "metric": "Return on Avg Assets",
+            },
+            {
+                "name": "ROTA (%)",
+                "period": "2020",
+                "category": "Performance Metrics",
+                "segment": "Citigroup",
+                "value": 0.50,
+                "prev": 0.47,
+                "unit": "%",
+                "metric": "Return on Avg Assets",
+            },
+            {
+                "name": "ROCE Common (%)",
+                "period": "2024",
+                "category": "Performance Metrics",
+                "segment": "Common Stockholders",
+                "value": 6.1,
+                "prev": 4.3,
+                "unit": "%",
+                "metric": "Return on Common Equity",
+            },
+            {
+                "name": "ROCE Common (%)",
+                "period": "2023",
+                "category": "Performance Metrics",
+                "segment": "Common Stockholders",
+                "value": 4.3,
+                "prev": 7.7,
+                "unit": "%",
+                "metric": "Return on Common Equity",
+            },
+            {
+                "name": "ROCE Common (%)",
+                "period": "2022",
+                "category": "Performance Metrics",
+                "segment": "Common Stockholders",
+                "value": 7.7,
+                "prev": 11.5,
+                "unit": "%",
+                "metric": "Return on Common Equity",
+            },
+            {
+                "name": "ROCE Common (%)",
+                "period": "2021",
+                "category": "Performance Metrics",
+                "segment": "Common Stockholders",
+                "value": 11.5,
+                "prev": 5.7,
+                "unit": "%",
+                "metric": "Return on Common Equity",
+            },
+            {
+                "name": "ROCE Common (%)",
+                "period": "2020",
+                "category": "Performance Metrics",
+                "segment": "Common Stockholders",
+                "value": 5.7,
+                "prev": 10.6,
+                "unit": "%",
+                "metric": "Return on Common Equity",
+            },
+            {
+                "name": "RoTCE (%)",
+                "period": "2024",
+                "category": "Performance Metrics",
+                "segment": "Common Stockholders",
+                "value": 7.0,
+                "prev": 4.9,
+                "unit": "%",
+                "metric": "Return on Tangible Common Equity",
+            },
+            {
+                "name": "RoTCE (%)",
+                "period": "2023",
+                "category": "Performance Metrics",
+                "segment": "Common Stockholders",
+                "value": 4.9,
+                "prev": 8.9,
+                "unit": "%",
+                "metric": "Return on Tangible Common Equity",
+            },
+            {
+                "name": "RoTCE (%)",
+                "period": "2022",
+                "category": "Performance Metrics",
+                "segment": "Common Stockholders",
+                "value": 8.9,
+                "prev": 13.4,
+                "unit": "%",
+                "metric": "Return on Tangible Common Equity",
+            },
+            {
+                "name": "RoTCE (%)",
+                "period": "2021",
+                "category": "Performance Metrics",
+                "segment": "Common Stockholders",
+                "value": 13.4,
+                "prev": 6.6,
+                "unit": "%",
+                "metric": "Return on Tangible Common Equity",
+            },
+            {
+                "name": "RoTCE (%)",
+                "period": "2020",
+                "category": "Performance Metrics",
+                "segment": "Common Stockholders",
+                "value": 6.6,
+                "prev": 12.1,
+                "unit": "%",
+                "metric": "Return on Tangible Common Equity",
+            },
+            {
+                "name": "Efficiency Ratio (%)",
+                "period": "2024",
+                "category": "Performance Metrics",
+                "segment": "Citigroup",
+                "value": 66.5,
+                "prev": 71.8,
+                "unit": "%",
+                "metric": "Efficiency Ratio",
+            },
+            {
+                "name": "Efficiency Ratio (%)",
+                "period": "2023",
+                "category": "Performance Metrics",
+                "segment": "Citigroup",
+                "value": 71.8,
+                "prev": 68.1,
+                "unit": "%",
+                "metric": "Efficiency Ratio",
+            },
+            {
+                "name": "Efficiency Ratio (%)",
+                "period": "2022",
+                "category": "Performance Metrics",
+                "segment": "Citigroup",
+                "value": 68.1,
+                "prev": 67.0,
+                "unit": "%",
+                "metric": "Efficiency Ratio",
+            },
+            {
+                "name": "Efficiency Ratio (%)",
+                "period": "2021",
+                "category": "Performance Metrics",
+                "segment": "Citigroup",
+                "value": 67.0,
+                "prev": 58.8,
+                "unit": "%",
+                "metric": "Efficiency Ratio",
+            },
+            {
+                "name": "Efficiency Ratio (%)",
+                "period": "2020",
+                "category": "Performance Metrics",
+                "segment": "Citigroup",
+                "value": 58.8,
+                "prev": 57.0,
+                "unit": "%",
+                "metric": "Efficiency Ratio",
+            },
+            # ── Basel III Ratios ───────────────────────────────────────────────
+            {
+                "name": "CET1 Capital (%)",
+                "period": "2024",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 13.63,
+                "prev": 13.37,
+                "unit": "%",
+                "metric": "CET1 Capital Ratio",
+            },
+            {
+                "name": "CET1 Capital (%)",
+                "period": "2023",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 13.37,
+                "prev": 13.03,
+                "unit": "%",
+                "metric": "CET1 Capital Ratio",
+            },
+            {
+                "name": "CET1 Capital (%)",
+                "period": "2022",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 13.03,
+                "prev": 12.25,
+                "unit": "%",
+                "metric": "CET1 Capital Ratio",
+            },
+            {
+                "name": "CET1 Capital (%)",
+                "period": "2021",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 12.25,
+                "prev": 11.51,
+                "unit": "%",
+                "metric": "CET1 Capital Ratio",
+            },
+            {
+                "name": "CET1 Capital (%)",
+                "period": "2020",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 11.51,
+                "prev": 11.86,
+                "unit": "%",
+                "metric": "CET1 Capital Ratio",
+            },
+            {
+                "name": "Tier 1 Capital (%)",
+                "period": "2024",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 15.31,
+                "prev": 15.02,
+                "unit": "%",
+                "metric": "Tier 1 Capital Ratio",
+            },
+            {
+                "name": "Tier 1 Capital (%)",
+                "period": "2023",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 15.02,
+                "prev": 14.80,
+                "unit": "%",
+                "metric": "Tier 1 Capital Ratio",
+            },
+            {
+                "name": "Tier 1 Capital (%)",
+                "period": "2022",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 14.80,
+                "prev": 13.91,
+                "unit": "%",
+                "metric": "Tier 1 Capital Ratio",
+            },
+            {
+                "name": "Tier 1 Capital (%)",
+                "period": "2021",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 13.91,
+                "prev": 13.06,
+                "unit": "%",
+                "metric": "Tier 1 Capital Ratio",
+            },
+            {
+                "name": "Tier 1 Capital (%)",
+                "period": "2020",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 13.06,
+                "prev": 13.22,
+                "unit": "%",
+                "metric": "Tier 1 Capital Ratio",
+            },
+            {
+                "name": "Total Capital (%)",
+                "period": "2024",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 15.42,
+                "prev": 15.13,
+                "unit": "%",
+                "metric": "Total Capital Ratio",
+            },
+            {
+                "name": "Total Capital (%)",
+                "period": "2023",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 15.13,
+                "prev": 15.46,
+                "unit": "%",
+                "metric": "Total Capital Ratio",
+            },
+            {
+                "name": "Total Capital (%)",
+                "period": "2022",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 15.46,
+                "prev": 16.04,
+                "unit": "%",
+                "metric": "Total Capital Ratio",
+            },
+            {
+                "name": "Total Capital (%)",
+                "period": "2021",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 16.04,
+                "prev": 15.33,
+                "unit": "%",
+                "metric": "Total Capital Ratio",
+            },
+            {
+                "name": "Total Capital (%)",
+                "period": "2020",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 15.33,
+                "prev": 15.38,
+                "unit": "%",
+                "metric": "Total Capital Ratio",
+            },
+            {
+                "name": "Supp. Leverage (%)",
+                "period": "2024",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 5.85,
+                "prev": 5.82,
+                "unit": "%",
+                "metric": "Supplementary Leverage Ratio",
+            },
+            {
+                "name": "Supp. Leverage (%)",
+                "period": "2023",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 5.82,
+                "prev": 5.82,
+                "unit": "%",
+                "metric": "Supplementary Leverage Ratio",
+            },
+            {
+                "name": "Supp. Leverage (%)",
+                "period": "2022",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 5.82,
+                "prev": 5.73,
+                "unit": "%",
+                "metric": "Supplementary Leverage Ratio",
+            },
+            {
+                "name": "Supp. Leverage (%)",
+                "period": "2021",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 5.73,
+                "prev": 6.99,
+                "unit": "%",
+                "metric": "Supplementary Leverage Ratio",
+            },
+            {
+                "name": "Supp. Leverage (%)",
+                "period": "2020",
+                "category": "Basel III Ratios",
+                "segment": "Capital",
+                "value": 6.99,
+                "prev": 6.72,
+                "unit": "%",
+                "metric": "Supplementary Leverage Ratio",
+            },
+            {
+                "name": "TBVPS ($)",
+                "period": "2024",
+                "category": "Capital",
+                "segment": "Common Stockholders",
+                "value": 89.34,
+                "prev": 86.19,
+                "unit": "$",
+                "metric": "Tangible Book Value Per Share",
+            },
+            {
+                "name": "TBVPS ($)",
+                "period": "2023",
+                "category": "Capital",
+                "segment": "Common Stockholders",
+                "value": 86.19,
+                "prev": 81.65,
+                "unit": "$",
+                "metric": "Tangible Book Value Per Share",
+            },
+            {
+                "name": "TBVPS ($)",
+                "period": "2022",
+                "category": "Capital",
+                "segment": "Common Stockholders",
+                "value": 81.65,
+                "prev": 79.16,
+                "unit": "$",
+                "metric": "Tangible Book Value Per Share",
+            },
+            {
+                "name": "TBVPS ($)",
+                "period": "2021",
+                "category": "Capital",
+                "segment": "Common Stockholders",
+                "value": 79.16,
+                "prev": 73.67,
+                "unit": "$",
+                "metric": "Tangible Book Value Per Share",
+            },
+            {
+                "name": "TBVPS ($)",
+                "period": "2020",
+                "category": "Capital",
+                "segment": "Common Stockholders",
+                "value": 73.67,
+                "prev": 69.56,
+                "unit": "$",
+                "metric": "Tangible Book Value Per Share",
+            },
+            {
+                "name": "Dividend Payout (%)",
+                "period": "2024",
+                "category": "Capital",
+                "segment": "Common Stockholders",
+                "value": 37,
+                "prev": 51,
+                "unit": "%",
+                "metric": "Dividend Payout Ratio",
+            },
+            {
+                "name": "Dividend Payout (%)",
+                "period": "2023",
+                "category": "Capital",
+                "segment": "Common Stockholders",
+                "value": 51,
+                "prev": 29,
+                "unit": "%",
+                "metric": "Dividend Payout Ratio",
+            },
+            {
+                "name": "Dividend Payout (%)",
+                "period": "2022",
+                "category": "Capital",
+                "segment": "Common Stockholders",
+                "value": 29,
+                "prev": 20,
+                "unit": "%",
+                "metric": "Dividend Payout Ratio",
+            },
+            {
+                "name": "Dividend Payout (%)",
+                "period": "2021",
+                "category": "Capital",
+                "segment": "Common Stockholders",
+                "value": 20,
+                "prev": 43,
+                "unit": "%",
+                "metric": "Dividend Payout Ratio",
+            },
+            {
+                "name": "Dividend Payout (%)",
+                "period": "2020",
+                "category": "Capital",
+                "segment": "Common Stockholders",
+                "value": 43,
+                "prev": 30,
+                "unit": "%",
+                "metric": "Dividend Payout Ratio",
             },
         ],
     },
@@ -456,6 +1378,130 @@ def get_dashboard_column_options(rows: List[Dict[str, Any]], column: str) -> Lis
     return ["All", *values]
 
 
+# ── Metric pre-filter for multi-metric datasets (e.g. Citi) ──────────────────
+# Maps common prompt keywords / abbreviations → exact "name" values in Citi data.
+_CITI_METRIC_ALIASES: Dict[str, str] = {
+    "tbvps": "TBVPS ($)",
+    "tangible book value per share": "TBVPS ($)",
+    "tangible book": "TBVPS ($)",
+    "dividend payout": "Dividend Payout (%)",
+    "rota (%)": "ROTA (%)",
+    "rota": "ROTA (%)",
+    "return on avg assets": "ROTA (%)",
+    "roce common (%)": "ROCE Common (%)",
+    "roce common": "ROCE Common (%)",
+    "return on common equity": "ROCE Common (%)",
+    "rotce (%)": "RoTCE (%)",
+    "rotce": "RoTCE (%)",
+    "return on tangible common equity": "RoTCE (%)",
+    "efficiency ratio (%)": "Efficiency Ratio (%)",
+    "efficiency ratio": "Efficiency Ratio (%)",
+    "cet1 capital (%)": "CET1 Capital (%)",
+    "cet1 capital": "CET1 Capital (%)",
+    "cet1": "CET1 Capital (%)",
+    "tier 1 capital (%)": "Tier 1 Capital (%)",
+    "tier 1 capital": "Tier 1 Capital (%)",
+    "total capital (%)": "Total Capital (%)",
+    "supplementary leverage": "Supp. Leverage (%)",
+    "supp. leverage (%)": "Supp. Leverage (%)",
+    "supp. leverage": "Supp. Leverage (%)",
+    "supp leverage": "Supp. Leverage (%)",
+    "total assets": "Total Assets",
+    "total deposits": "Total Deposits",
+    "long-term debt": "Long-term Debt",
+    "common equity": "Common Equity",
+    "total equity": "Total Equity",
+}
+
+
+def _narrow_by_metric(rows: List[Dict[str, Any]], prompt: str) -> List[Dict[str, Any]]:
+    """Narrow multi-metric rows to only those matching the widget prompt.
+
+    For Citi-style datasets each metric repeats across 5 periods. Without
+    narrowing, KPIs sum all 15 metrics (→ $21B nonsense) and trend charts
+    aggregate unrelated series together.
+
+    Resolution order:
+    1. Alias lookup   — handles abbreviations (TBVPS, CET1, ROTA …).
+    2. Exact name     — prompt IS the metric name (rule-based widget prompts).
+    3. Word-overlap   — picks the metric(s) whose significant words best match;
+                        returns all tied-best so comparison charts still work.
+    """
+    import re as _re
+
+    if not rows:
+        return rows
+    names = list({str(row.get("name", "")) for row in rows})
+    if len(names) <= 1:
+        return rows  # Already a single metric — nothing to do
+
+    p = prompt.lower().strip()
+
+    # 1. Alias lookup (longest match wins to avoid partial collisions)
+    best_alias_len = 0
+    best_canonical: Optional[str] = None
+    for alias, canonical in _CITI_METRIC_ALIASES.items():
+        if alias in p and len(alias) > best_alias_len and canonical in names:
+            best_alias_len = len(alias)
+            best_canonical = canonical
+    if best_canonical:
+        filtered = [r for r in rows if str(r.get("name", "")) == best_canonical]
+        if filtered:
+            return filtered
+
+    # 2. Exact name match
+    for name in names:
+        if name.lower() == p:
+            return [r for r in rows if str(r.get("name", "")) == name]
+
+    # 3. Word-overlap scoring
+    _stop = {
+        "the",
+        "and",
+        "for",
+        "per",
+        "of",
+        "in",
+        "at",
+        "to",
+        "by",
+        "as",
+        "a",
+        "an",
+        "all",
+        "with",
+        "over",
+        "show",
+        "add",
+        "get",
+        "value",
+        "values",
+        "latest",
+        "trend",
+        "growth",
+        "chart",
+        "2020",
+        "2024",
+    }
+
+    def _sig(s: str) -> set:
+        return {
+            w
+            for w in _re.sub(r"[(%$,.]", "", s).lower().split()
+            if len(w) > 2 and w not in _stop
+        }
+
+    prompt_words = _sig(p)
+    scored = [(name, len(_sig(name) & prompt_words)) for name in names]
+    best = max(s for _, s in scored)
+    if best == 0:
+        return rows  # No keyword match — return all rows unchanged
+
+    matched_names = {name for name, s in scored if s == best}
+    filtered = [r for r in rows if str(r.get("name", "")) in matched_names]
+    return filtered if filtered else rows
+
+
 def build_dashboard_response(
     widget_type: str,
     rows: List[Dict[str, Any]],
@@ -472,6 +1518,15 @@ def build_dashboard_response(
     if widget_type == "text":
         # Text widgets carry no data row; content is stored in the prompt field.
         return []
+
+    # Narrow multi-metric rows to only those matching this widget's prompt.
+    # Skipped for report/grid which intentionally display all rows.
+    if widget_type not in ("report", "grid"):
+        rows = _narrow_by_metric(rows, prompt)
+
+    if widget_type == "report":
+        # Report widgets return all rows with all columns for the rich table renderer.
+        return [dict(row) for row in rows]
 
     if widget_type == "grid":
         # Return all columns from each row as-is; frontend renders a full table.
@@ -508,6 +1563,56 @@ def build_dashboard_response(
         ]
 
     if widget_type == "kpi":
+        # When multiple periods are present use only the most recent (e.g. 2024)
+        # so the KPI card shows the latest snapshot, not a cross-year aggregate.
+        periods_present = sorted(
+            {str(r.get("period", "")) for r in rows if r.get("period")}, reverse=True
+        )
+        if len(periods_present) > 1:
+            latest = periods_present[0]
+            latest_rows = [r for r in rows if str(r.get("period", "")) == latest]
+            if latest_rows:
+                rows = latest_rows
+
+        # Detect unit from rows to choose formatting and aggregation strategy
+        units = {str(row.get("unit", "")) for row in rows if row.get("unit")}
+        unit = next(iter(units), "") if len(units) == 1 else ""
+
+        def _change(cur: float, prv: float) -> str:
+            sign = "+" if cur >= prv else ""
+            pct = ((cur - prv) / abs(prv) * 100) if prv else 0.0
+            return f"{sign}{pct:.1f}%"
+
+        # Percentage metrics (ROTA, ROCE, CET1, Efficiency Ratio …)
+        # Averaging across periods gives a meaningful multi-year mean.
+        if unit == "%":
+            vals = [float(row.get("value", 0)) for row in rows]
+            prevs = [float(row.get("prev", 0)) for row in rows]
+            cur = sum(vals) / len(vals) if vals else 0.0
+            prv = sum(prevs) / len(prevs) if prevs else 0.0
+            return [
+                {
+                    "value": f"{cur:.2f}%",
+                    "change": _change(cur, prv),
+                    "positive": cur >= prv,
+                }
+            ]
+
+        # Per-share dollar metrics (TBVPS)
+        if unit == "$":
+            vals = [float(row.get("value", 0)) for row in rows]
+            prevs = [float(row.get("prev", 0)) for row in rows]
+            cur = sum(vals) / len(vals) if vals else 0.0
+            prv = sum(prevs) / len(prevs) if prevs else 0.0
+            return [
+                {
+                    "value": f"${cur:.2f}",
+                    "change": _change(cur, prv),
+                    "positive": cur >= prv,
+                }
+            ]
+
+        # Risk pseudo-metric
         total_current = sum(int(row.get("value", 0)) for row in rows)
         total_prev = sum(int(row.get("prev", 0)) for row in rows)
         if total_prev <= 0:
@@ -524,6 +1629,7 @@ def build_dashboard_response(
                     "positive": change_pct >= 0,
                 }
             ]
+        # Default: $M (trade data and Citi Balance Sheet filtered to one year)
         return [
             {
                 "value": f"${total_current:,.0f}M",
@@ -540,6 +1646,25 @@ def build_dashboard_response(
         and x_axis_key not in _TIME_KEYS
     ):
         return _aggregate_by_key(rows, x_axis_key)
+
+    # Auto-deduplicate: if the chosen x-axis key produces duplicate values (e.g.
+    # Citi financial data where "period" appears 15 times, once per metric),
+    # aggregate rather than returning raw rows — otherwise recharts zigzags wildly.
+    # The aggregated data keeps the original key name so the frontend XAxis
+    # dataKey (cfg.xAxisKey) always matches the returned field name.
+    if widget_type in ("bar", "area", "line") and rows:
+        xk = x_axis_key or "name"
+        x_vals = [row.get(xk) for row in rows]
+        if len(x_vals) != len(set(x_vals)):
+            return _aggregate_by_key(rows, xk)
+
+    # Sort by time-series key ascending so charts display naturally (2020 → 2024)
+    if (
+        x_axis_key
+        and x_axis_key not in {"name"}
+        and widget_type in ("bar", "area", "line")
+    ):
+        rows = sorted(rows, key=lambda r: str(r.get(x_axis_key, "")))
 
     return [dict(row) for row in rows]
 
@@ -624,6 +1749,7 @@ class _WidgetType(str, Enum):
     kpi = "kpi"
     grid = "grid"
     text = "text"
+    report = "report"
     filter_select = "filter-select"
     filter_range = "filter-range"
 
@@ -635,6 +1761,10 @@ class _XAxisKey(str, Enum):
     products = "products"
     region = "region"
     country = "country"
+    period = "period"
+    category = "category"
+    segment = "segment"
+    metric = "metric"
 
 
 class _WidgetAction(BaseModel):
@@ -654,8 +1784,16 @@ class _WidgetAction(BaseModel):
         description=(
             "Width: 1=small (kpi/pie/filter), "
             "2=half-width (bar/area/line/grid default), "
-            "3=full-width (heatmap/text)."
+            "3=full-width (heatmap/text/report)."
         )
+    )
+    height: Literal[1, 2, 3] = Field(
+        default=1,
+        description=(
+            "Row-span height: 1=compact (kpi/filter/pie), "
+            "2=medium (charts/grid), "
+            "3=tall (report/heatmap/text with lots of data)."
+        ),
     )
     xAxisKey: _XAxisKey = Field(
         description=(
@@ -687,11 +1825,12 @@ JSON SCHEMA (follow exactly):
   "message": "<1-2 sentence summary of what is being added>",
   "actions": [
     {{
-      "widgetType": "<bar|area|line|pie|heatmap|kpi|grid|text|filter-select|filter-range>",
+      "widgetType": "<bar|area|line|pie|heatmap|kpi|grid|text|report|filter-select|filter-range>",
       "title": "<3-5 word title>",
       "prompt": "<what data to show; for filter-select/filter-range use the column name>",
       "span": <1|2|3>,
-      "xAxisKey": "<name|imports_exports|industries|products|region|country>"
+      "height": <1|2|3>,
+      "xAxisKey": "<name|imports_exports|industries|products|region|country|period|category|segment|metric>"
     }}
   ]
 }}
@@ -699,7 +1838,12 @@ JSON SCHEMA (follow exactly):
 SPAN RULES (mandatory):
   kpi=1  pie=1  filter-select=1  filter-range=1
   bar=2  area=2  line=2  grid=2
-  heatmap=3  text=3
+  heatmap=3  text=3  report=3
+
+HEIGHT RULES — row-span (1=compact ~220px, 2=medium ~460px, 3=tall ~700px):
+  kpi=1  pie=1  filter-select=1  filter-range=1
+  bar=2  area=2  line=2  grid=2
+  heatmap=3  text=3  report=3  (height=2 only for very small report tables)
 
 XAXISKEY RULES:
   monthly / time-series trend  →  name
@@ -708,20 +1852,49 @@ XAXISKEY RULES:
   group by region               →  region
   group by country              →  country
   imports vs exports            →  imports_exports
-  text or grid (all rows)       →  name
+  text, grid or report (all rows) →  name
+  Citi financial by year/period  →  period
+  Citi financial by category     →  category
+  Citi financial by metric name  →  metric
+  Citi financial by segment      →  segment
 
 DATA SOURCE: {source_id}
-COLUMNS: name (Jan-Jul months), imports_exports (Imports|Exports),
+COLUMNS: name (Jan-Jul months OR metric name), imports_exports (Imports|Exports),
   industries ({industries}), products ({products}),
   region (APAC|EMEA|Americas), country, value (trade value), prev (prior period)
+  [citi-financial-summary also has: period (2020-2024), category, segment, metric, unit]
 
 EXISTING WIDGETS: {existing_widgets}
 
 EXAMPLE — user asks "KPI and bar chart by industry":
-{{"message":"Adding a total value KPI and a bar chart by industry.","actions":[{{"widgetType":"kpi","title":"Total Trade Value","prompt":"Headline total trade value","span":1,"xAxisKey":"name"}},{{"widgetType":"bar","title":"Trade by Industry","prompt":"Compare trade value by industry","span":2,"xAxisKey":"industries"}}]}}
+{{"message":"Adding a total value KPI and a bar chart by industry.","actions":[{{"widgetType":"kpi","title":"Total Trade Value","prompt":"Headline total trade value","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"bar","title":"Trade by Industry","prompt":"Compare trade value by industry","span":2,"height":2,"xAxisKey":"industries"}}]}}
 
 EXAMPLE — user asks "full overview with KPIs, bar chart, and filters":
-{{"message":"Building a full trade overview with KPI cards, a bar chart, and filter controls.","actions":[{{"widgetType":"kpi","title":"Total Trade Value","prompt":"Headline total trade value","span":1,"xAxisKey":"name"}},{{"widgetType":"kpi","title":"YoY Change","prompt":"Period-over-period trade change","span":1,"xAxisKey":"name"}},{{"widgetType":"bar","title":"Trade by Industry","prompt":"Compare trade value across industries","span":2,"xAxisKey":"industries"}},{{"widgetType":"filter-select","title":"Filter: Type","prompt":"imports_exports","span":1,"xAxisKey":"imports_exports"}},{{"widgetType":"filter-select","title":"Filter: Industry","prompt":"industries","span":1,"xAxisKey":"industries"}}]}}
+{{"message":"Building a full trade overview with KPI cards, a bar chart, and filter controls.","actions":[{{"widgetType":"kpi","title":"Total Trade Value","prompt":"Headline total trade value","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"kpi","title":"YoY Change","prompt":"Period-over-period trade change","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"bar","title":"Trade by Industry","prompt":"Compare trade value across industries","span":2,"height":2,"xAxisKey":"industries"}},{{"widgetType":"filter-select","title":"Filter: Type","prompt":"imports_exports","span":1,"height":1,"xAxisKey":"imports_exports"}},{{"widgetType":"filter-select","title":"Filter: Industry","prompt":"industries","span":1,"height":1,"xAxisKey":"industries"}}]}}
+
+EXAMPLE — user asks "show all data in a detailed report table":
+{{"message":"Adding a full-width report table with all data rows, search, sort, and CSV export.","actions":[{{"widgetType":"report","title":"Full Data Report","prompt":"Show all data in a detailed report table","span":3,"height":3,"xAxisKey":"name"}}]}}
+
+EXAMPLE — user asks "Citi financial summary report by category":
+{{"message":"Adding a report table of Citi financial data grouped by category.","actions":[{{"widgetType":"report","title":"Citi Financial Report","prompt":"Show all Citi financial metrics by category","span":3,"height":3,"xAxisKey":"category"}}]}}
+
+EXAMPLE — user asks "Citi executive: period filter, Total Assets, Deposits & Equity KPIs, and full report":
+{{"message":"Building a Citi executive scorecard with a period filter, 3 balance sheet KPI cards, and a complete financial report.","actions":[{{"widgetType":"filter-select","title":"Filter: Period","prompt":"period","span":1,"height":1,"xAxisKey":"period"}},{{"widgetType":"kpi","title":"Total Assets","prompt":"Total Assets","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"kpi","title":"Total Deposits","prompt":"Total Deposits","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"kpi","title":"Common Equity","prompt":"Common Equity","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"filter-select","title":"Filter: Category","prompt":"category","span":1,"height":1,"xAxisKey":"category"}},{{"widgetType":"report","title":"Citi Financial Report","prompt":"Show all Citi financial metrics with period, category, value and year-over-year change","span":3,"height":3,"xAxisKey":"name"}}]}}
+
+EXAMPLE — user asks "Show Basel III ratios: CET1, Tier 1 & Total Capital bar chart with compliance KPIs":
+{{"message":"Adding CET1, Tier 1, and Total Capital ratio KPI cards plus a Basel III bar chart comparing all ratios by metric name.","actions":[{{"widgetType":"kpi","title":"CET1 Capital Ratio","prompt":"CET1 Capital (%)","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"kpi","title":"Tier 1 Capital","prompt":"Tier 1 Capital (%)","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"kpi","title":"Supp. Leverage Ratio","prompt":"Supp. Leverage (%)","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"bar","title":"Basel III Capital Ratios","prompt":"Compare Basel III capital ratios CET1, Tier 1, Total Capital, and Supplementary Leverage by metric name","span":3,"height":2,"xAxisKey":"name"}}]}}
+
+EXAMPLE — user asks "Add ROTA, ROCE & RoTCE profitability KPIs with 5-year category bar chart":
+{{"message":"Adding profitability KPI cards for ROTA, ROCE, and RoTCE alongside a 5-year performance metrics bar chart.","actions":[{{"widgetType":"kpi","title":"ROTA (%)","prompt":"ROTA (%)","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"kpi","title":"ROCE Common (%)","prompt":"ROCE Common (%)","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"kpi","title":"RoTCE (%)","prompt":"RoTCE (%)","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"bar","title":"Profitability Metrics","prompt":"Compare all performance metrics ROTA ROCE RoTCE Efficiency Ratio by metric name","span":3,"height":2,"xAxisKey":"name"}}]}}
+
+EXAMPLE — user asks "Show TBVPS growth as area chart, Dividend Payout KPI, and Efficiency Ratio trend":
+{{"message":"Adding TBVPS 5-year area chart, Dividend Payout KPI, and Efficiency Ratio trend line chart.","actions":[{{"widgetType":"kpi","title":"Dividend Payout","prompt":"Dividend Payout (%)","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"kpi","title":"Efficiency Ratio","prompt":"Efficiency Ratio (%)","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"area","title":"TBVPS 5-Year Growth","prompt":"TBVPS ($)","span":2,"height":2,"xAxisKey":"period"}},{{"widgetType":"line","title":"Efficiency Ratio Trend","prompt":"Efficiency Ratio (%)","span":2,"height":2,"xAxisKey":"period"}}]}}
+
+EXAMPLE — user asks "Build full Citi dashboard: category heatmap, capital KPIs, and financial report":
+{{"message":"Building a comprehensive Citi dashboard with a category heatmap, key capital KPIs, period and category filters, and a full financial report.","actions":[{{"widgetType":"filter-select","title":"Filter: Period","prompt":"period","span":1,"height":1,"xAxisKey":"period"}},{{"widgetType":"filter-select","title":"Filter: Category","prompt":"category","span":1,"height":1,"xAxisKey":"category"}},{{"widgetType":"kpi","title":"Total Assets","prompt":"Total Assets","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"kpi","title":"CET1 Capital Ratio","prompt":"CET1 Capital (%)","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"kpi","title":"Common Equity","prompt":"Common Equity","span":1,"height":1,"xAxisKey":"name"}},{{"widgetType":"heatmap","title":"Financial Metrics Heatmap","prompt":"Heatmap of all Citi financial metrics across categories","span":3,"height":3,"xAxisKey":"name"}},{{"widgetType":"report","title":"Full Citi Report","prompt":"Complete Citi financial data table with all metrics, periods, categories and values","span":3,"height":3,"xAxisKey":"name"}}]}}
+
+EXAMPLE — user asks "Show Citi balance sheet metrics across 2020-2024 by year as bar chart with report":
+{{"message":"Adding a 5-year balance sheet bar chart by period and a detailed balance sheet report table.","actions":[{{"widgetType":"bar","title":"Balance Sheet by Year","prompt":"Total Assets, Total Deposits, Long-term Debt, and equity values aggregated by period 2020-2024","span":3,"height":2,"xAxisKey":"period"}},{{"widgetType":"report","title":"Balance Sheet Report","prompt":"Show all Balance Sheet metrics with period and year-over-year values","span":3,"height":3,"xAxisKey":"name"}}]}}
 
 USER REQUEST: {user_message}
 
@@ -732,51 +1905,216 @@ JSON output:
 # ── helpers for rule-based fallback ──────────────────────────────────────────
 
 
-def _w(widget_type: str, title: str, prompt: str, span: int, x: str) -> dict:
+def _w(
+    widget_type: str, title: str, prompt: str, span: int, x: str, height: int = 1
+) -> dict:
     return {
         "type": "add_widget",
         "widgetType": widget_type,
         "title": title,
         "prompt": prompt,
         "span": span,
+        "height": height,
         "xAxisKey": x,
     }
 
 
-def _rule_based_widgets(message: str) -> list:
+def _rule_based_widgets(message: str, source_id: str = "global-trade") -> list:
     """Keyword-based widget builder used when LLM returns no actions."""
     m = message.lower()
     widgets: list = []
 
+    # ── Citi-specific banking dashboards ─────────────────────────────────────
+    if any(k in m for k in ("citi executive", "citi full", "full citi")):
+        return [
+            _w("filter-select", "Filter: Period", "period", 1, "period", 1),
+            _w("filter-select", "Filter: Category", "category", 1, "category", 1),
+            _w("kpi", "Total Assets", "Total Assets", 1, "name", 1),
+            _w("kpi", "CET1 Capital Ratio", "CET1 Capital (%)", 1, "name", 1),
+            _w("kpi", "Common Equity", "Common Equity", 1, "name", 1),
+            _w(
+                "heatmap",
+                "Financial Metrics Heatmap",
+                "Heatmap of all Citi financial metrics across categories",
+                3,
+                "name",
+                3,
+            ),
+            _w(
+                "report",
+                "Full Citi Report",
+                "Complete Citi financial data table with all metrics, periods, categories and values",
+                3,
+                "name",
+                3,
+            ),
+        ]
+
+    if any(
+        k in m
+        for k in ("cet1", "tier 1", "tier1", "basel", "capital ratio", "total capital")
+    ):
+        return [
+            _w("kpi", "CET1 Capital Ratio", "CET1 Capital (%)", 1, "name", 1),
+            _w("kpi", "Tier 1 Capital", "Tier 1 Capital (%)", 1, "name", 1),
+            _w(
+                "kpi",
+                "Supp. Leverage Ratio",
+                "Supp. Leverage (%)",
+                1,
+                "name",
+                1,
+            ),
+            _w(
+                "bar",
+                "Basel III Capital Ratios",
+                "Compare Basel III capital ratios CET1, Tier 1, Total Capital by metric name",
+                3,
+                "name",
+                2,
+            ),
+        ]
+
+    if any(k in m for k in ("rota", "roce", "rotce", "profitability", "return on")):
+        return [
+            _w("kpi", "ROTA (%)", "ROTA (%)", 1, "name", 1),
+            _w("kpi", "ROCE Common (%)", "ROCE Common (%)", 1, "name", 1),
+            _w(
+                "kpi",
+                "RoTCE (%)",
+                "RoTCE (%)",
+                1,
+                "name",
+                1,
+            ),
+            _w(
+                "bar",
+                "Profitability Metrics",
+                "Compare all performance metrics ROTA ROCE RoTCE Efficiency Ratio by metric name",
+                3,
+                "name",
+                2,
+            ),
+        ]
+
+    if any(
+        k in m
+        for k in ("tbvps", "tangible book", "dividend payout", "book value per share")
+    ):
+        return [
+            _w("kpi", "Dividend Payout", "Dividend Payout (%)", 1, "name", 1),
+            _w(
+                "kpi",
+                "TBVPS",
+                "TBVPS ($)",
+                1,
+                "name",
+                1,
+            ),
+            _w(
+                "area",
+                "TBVPS 5-Year Growth",
+                "TBVPS ($)",
+                2,
+                "period",
+                2,
+            ),
+            _w(
+                "line",
+                "Efficiency Ratio Trend",
+                "Efficiency Ratio (%)",
+                2,
+                "period",
+                2,
+            ),
+        ]
+
+    if any(
+        k in m
+        for k in ("balance sheet", "total assets", "total deposits", "long-term debt")
+    ):
+        return [
+            _w("filter-select", "Filter: Period", "period", 1, "period", 1),
+            _w("kpi", "Total Assets", "Total Assets", 1, "name", 1),
+            _w("kpi", "Total Deposits", "Total Deposits", 1, "name", 1),
+            _w("kpi", "Common Equity", "Common Equity", 1, "name", 1),
+            _w(
+                "bar",
+                "Balance Sheet by Year",
+                "Total Assets, Total Deposits, Long-term Debt, and equity by period 2020-2024",
+                3,
+                "period",
+                2,
+            ),
+            _w(
+                "report",
+                "Balance Sheet Report",
+                "Show all Balance Sheet metrics with period and year-over-year values",
+                3,
+                "name",
+                3,
+            ),
+        ]
+
+    if any(k in m for k in ("efficiency ratio", "efficiency")):
+        return [
+            _w("filter-select", "Filter: Category", "category", 1, "category", 1),
+            _w("kpi", "Efficiency Ratio", "Efficiency Ratio (%)", 1, "name", 1),
+            _w(
+                "line",
+                "Efficiency Ratio Trend",
+                "Efficiency Ratio (%)",
+                2,
+                "period",
+                2,
+            ),
+            _w(
+                "text",
+                "Performance Summary",
+                "Executive summary of Citi performance metrics and efficiency trends 2020-2024",
+                3,
+                "name",
+                2,
+            ),
+        ]
+
+    # ── Generic trade dashboards ──────────────────────────────────────────────
     if any(k in m for k in ("full", "overview", "complete")):
         return [
-            _w("kpi", "Total Trade Value", "Headline total trade value", 1, "name"),
-            _w("kpi", "YoY Change", "Period-over-period trade change", 1, "name"),
+            _w("kpi", "Total Trade Value", "Headline total trade value", 1, "name", 1),
+            _w("kpi", "YoY Change", "Period-over-period trade change", 1, "name", 1),
             _w(
                 "bar",
                 "Trade by Industry",
                 "Compare trade value by industry",
                 2,
                 "industries",
+                2,
             ),
             _w(
-                "filter-select", "Filter: Type", "imports_exports", 1, "imports_exports"
+                "filter-select",
+                "Filter: Type",
+                "imports_exports",
+                1,
+                "imports_exports",
+                1,
             ),
-            _w("filter-select", "Filter: Industry", "industries", 1, "industries"),
+            _w("filter-select", "Filter: Industry", "industries", 1, "industries", 1),
         ]
     if "manufacturing" in m and "risk" in m:
         return [
-            _w("kpi", "Risk Score", "Manufacturing risk score", 1, "name"),
-            _w("kpi", "Total Value", "Headline trade value", 1, "name"),
+            _w("kpi", "Risk Score", "Manufacturing risk score", 1, "name", 1),
+            _w("kpi", "Total Value", "Headline trade value", 1, "name", 1),
             _w(
                 "heatmap",
                 "Risk Heatmap",
                 "Color intensity across months and metrics",
                 3,
                 "name",
+                3,
             ),
-            _w("bar", "Value by Country", "Compare value by country", 2, "country"),
-            _w("filter-select", "Filter: Industry", "industries", 1, "industries"),
+            _w("bar", "Value by Country", "Compare value by country", 2, "country", 2),
+            _w("filter-select", "Filter: Industry", "industries", 1, "industries", 1),
         ]
 
     x_key = (
@@ -807,6 +2145,7 @@ def _rule_based_widgets(message: str) -> list:
                     "Headline trade value",
                     1,
                     "name",
+                    1,
                 )
             )
     if any(k in m for k in ("bar chart", "bar", "column")):
@@ -817,13 +2156,16 @@ def _rule_based_widgets(message: str) -> list:
                 f"Compare trade value by {x_key.replace('_',' ')}",
                 2,
                 x_key,
+                2,
             )
         )
     if any(k in m for k in ("area", "trend")):
-        widgets.append(_w("area", "Trend Chart", "Monthly trend over time", 2, "name"))
+        widgets.append(
+            _w("area", "Trend Chart", "Monthly trend over time", 2, "name", 2)
+        )
     if any(k in m for k in ("line chart", "line", "previous vs", "prev vs")):
         widgets.append(
-            _w("line", "Line Chart", "Multi-series trend comparison", 2, "name")
+            _w("line", "Line Chart", "Multi-series trend comparison", 2, "name", 2)
         )
     if "pie" in m:
         pie_x = (
@@ -831,7 +2173,9 @@ def _rule_based_widgets(message: str) -> list:
             if "industr" in m
             else "products" if "product" in m else "imports_exports"
         )
-        widgets.append(_w("pie", "Distribution", f"Distribution by {pie_x}", 1, pie_x))
+        widgets.append(
+            _w("pie", "Distribution", f"Distribution by {pie_x}", 1, pie_x, 1)
+        )
     if "heatmap" in m:
         widgets.append(
             _w(
@@ -840,13 +2184,25 @@ def _rule_based_widgets(message: str) -> list:
                 "Color intensity across months and metrics",
                 3,
                 "name",
+                3,
             )
         )
     if "grid" in m or "table" in m or "rows" in m:
         widgets.append(
-            _w("grid", "Data Grid", "All trade rows in tabular view", 2, "name")
+            _w("grid", "Data Grid", "All trade rows in tabular view", 2, "name", 2)
         )
-    if any(k in m for k in ("text", "summary", "report", "executive")):
+    if any(k in m for k in ("report table", "report", "detailed")):
+        widgets.append(
+            _w(
+                "report",
+                "Data Report",
+                "Show all data in a detailed report table",
+                3,
+                "name",
+                3,
+            )
+        )
+    if any(k in m for k in ("text", "summary", "executive")):
         widgets.append(
             _w(
                 "text",
@@ -854,29 +2210,65 @@ def _rule_based_widgets(message: str) -> list:
                 "Executive summary of current trade data",
                 3,
                 "name",
+                2,
             )
         )
     if "filter" in m and "range" not in m:
         widgets.append(
-            _w("filter-select", "Filter: Industry", "industries", 1, "industries")
+            _w("filter-select", "Filter: Industry", "industries", 1, "industries", 1)
         )
     if "range filter" in m or "range" in m:
-        widgets.append(_w("filter-range", "Trade Value Range", "value", 1, "name"))
+        widgets.append(_w("filter-range", "Trade Value Range", "value", 1, "name", 1))
 
     if not widgets:
-        widgets = [
-            _w("kpi", "Total Trade Value", "Headline total trade value", 1, "name"),
-            _w(
-                "bar",
-                "Trade by Industry",
-                "Compare trade value by industry",
-                2,
-                "industries",
-            ),
-            _w(
-                "filter-select", "Filter: Type", "imports_exports", 1, "imports_exports"
-            ),
-        ]
+        if source_id == "citi-financial-summary":
+            widgets = [
+                _w("filter-select", "Filter: Period", "period", 1, "period", 1),
+                _w("kpi", "Total Assets", "Total Assets", 1, "name", 1),
+                _w(
+                    "kpi",
+                    "CET1 Capital Ratio",
+                    "CET1 Capital (%)",
+                    1,
+                    "name",
+                    1,
+                ),
+                _w(
+                    "bar",
+                    "Balance Sheet by Year",
+                    "Total Assets and Deposits by period 2020-2024",
+                    3,
+                    "period",
+                    2,
+                ),
+            ]
+        else:
+            widgets = [
+                _w(
+                    "kpi",
+                    "Total Trade Value",
+                    "Headline total trade value",
+                    1,
+                    "name",
+                    1,
+                ),
+                _w(
+                    "bar",
+                    "Trade by Industry",
+                    "Compare trade value by industry",
+                    2,
+                    "industries",
+                    2,
+                ),
+                _w(
+                    "filter-select",
+                    "Filter: Type",
+                    "imports_exports",
+                    1,
+                    "imports_exports",
+                    1,
+                ),
+            ]
     return widgets
 
 
@@ -933,6 +2325,7 @@ async def ai_generate_dashboard(payload: AiGenerateRequest):
                     "title": a.title,
                     "prompt": a.prompt,
                     "span": a.span,
+                    "height": a.height,
                     "xAxisKey": a.xAxisKey.value,
                 }
                 for a in result.actions
@@ -952,10 +2345,9 @@ async def ai_generate_dashboard(payload: AiGenerateRequest):
                 valid_types = {t.value for t in _WidgetType}
                 valid_keys = {k.value for k in _XAxisKey}
                 for a in parsed["actions"]:
-                    if (
-                        a.get("widgetType") in valid_types
-                        and a.get("xAxisKey") in valid_keys
-                    ):
+                    wt = a.get("widgetType")
+                    xk = a.get("xAxisKey")
+                    if wt in valid_types and (xk in valid_keys or xk is None):
                         actions.append(
                             {
                                 "type": "add_widget",
@@ -963,6 +2355,7 @@ async def ai_generate_dashboard(payload: AiGenerateRequest):
                                 "title": str(a.get("title", a["widgetType"])),
                                 "prompt": str(a.get("prompt", "")),
                                 "span": int(a.get("span", 2)),
+                                "height": int(a.get("height", 1)),
                                 "xAxisKey": a["xAxisKey"],
                             }
                         )
@@ -972,7 +2365,7 @@ async def ai_generate_dashboard(payload: AiGenerateRequest):
 
     # ── Tier 3: rule-based fallback ───────────────────────────────────────────
     if not actions:
-        actions = _rule_based_widgets(payload.message)
+        actions = _rule_based_widgets(payload.message, payload.sourceId)
         response_message = f'Built your dashboard from: "{payload.message}"'
         used_fallback = True
 

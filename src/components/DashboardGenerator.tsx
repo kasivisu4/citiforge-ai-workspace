@@ -29,13 +29,14 @@ import {
   PieChart as PieIcon, Activity, Bot, Sparkles, MessageSquare,
   ChevronDown, ChevronUp, Copy, Send, User, MessageCircle,
   Download, Table2, FileText, FileDown,
+  Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, SlidersHorizontal,
 } from 'lucide-react';
 import { ChartEditDialog, defaultChartConfig, applyPromptToConfig } from './ChartEditDialog';
 import type { ChartConfig, EditableWidget } from './ChartEditDialog';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type ChartType = 'bar' | 'area' | 'line' | 'pie' | 'heatmap' | 'filter-select' | 'filter-range' | 'kpi' | 'grid' | 'text';
+type ChartType = 'bar' | 'area' | 'line' | 'pie' | 'heatmap' | 'filter-select' | 'filter-range' | 'kpi' | 'grid' | 'text' | 'report';
 
 export interface WidgetComment {
   id: string;
@@ -52,6 +53,7 @@ interface DashboardWidget {
   prompt: string;
   data: any[];
   span: 1 | 2 | 3; // grid columns
+  height: 1 | 2 | 3; // widget height: sm / md / lg
   loading: boolean;
   filterKey?: string; // cross-filter key
   config: ChartConfig;
@@ -188,6 +190,21 @@ function generateAIInsight(widget: DashboardWidget): string {
   if (t === 'heatmap') {
     return 'The heatmap surfaces intensity patterns across two dimensions. High-intensity clusters (darker cells) indicate concentration zones — these warrant deeper investigation to understand root causes and business implications.';
   }
+  if (t === 'report') {
+    if (p.includes('balance sheet') || p.includes('assets') || p.includes('deposits')) {
+      return 'Balance sheet metrics provide a point-in-time snapshot of Citi\'s financial position. Pay close attention to year-over-year movements in Total Assets and Deposits — these signal balance sheet expansion and funding mix shifts, both critical to capital adequacy assessments.';
+    }
+    if (p.includes('cet1') || p.includes('tier 1') || p.includes('capital ratio') || p.includes('basel')) {
+      return 'Basel III capital ratios sit at the core of regulatory compliance. A CET1 ratio above 13% signals a well-capitalised institution with headroom above the regulatory minimum. Monitor Supplementary Leverage for systemic risk exposure, and flag any quarter-over-quarter deterioration for immediate escalation.';
+    }
+    if (p.includes('rota') || p.includes('roce') || p.includes('rotce') || p.includes('performance')) {
+      return 'Return metrics (ROTA, ROCE, RoTCE) reflect how effectively capital is deployed to generate profit. A rising RoTCE trend is a leading indicator of improving shareholder value. Efficiency Ratio compression (lower is better) signals cost discipline — target below 60% for best-in-class performance.';
+    }
+    if (p.includes('citi') || p.includes('financial')) {
+      return 'This report consolidates Citi\'s multi-year financial data across all categories. Use the search and sort controls to isolate metrics of interest. Export to CSV for offline analysis or regulatory reporting. Key watch items: CET1 trajectory, RoTCE recovery, and Efficiency Ratio trend post-2023 transformation.';
+    }
+    return 'Scan this report for outlier rows where the current value diverges significantly from the prior period. Large absolute or percentage changes may indicate one-off events, restatements, or accelerating structural shifts that warrant further investigation.';
+  }
   return 'Analyze this visualization in context with other dashboard components. Cross-filtering across multiple charts will help surface correlations and causal relationships in your data.';
 }
 
@@ -318,6 +335,7 @@ const WIDGET_TYPES: { type: ChartType; label: string; icon: typeof BarChart3; de
   { type: 'text',          label: 'Text Block',      icon: FileText,   description: 'Report section with formatted text' },
   { type: 'filter-select', label: 'Filter (Select)', icon: Filter,     description: 'Dropdown cross-filter' },
   { type: 'filter-range',  label: 'Filter (Range)',  icon: Sliders,    description: 'Numeric range slider' },
+  { type: 'report',        label: 'Report Table',   icon: Table2,     description: 'Sortable grid with search, columns & CSV export' },
 ];
 
 // ─── Individual chart renderers ───────────────────────────────────────────────
@@ -782,6 +800,319 @@ function FilterWidget({
   return null;
 }
 
+// ─── Report Widget ────────────────────────────────────────────────────────────
+
+function ReportWidget({ widget }: { widget: DashboardWidget }) {
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [hiddenCols, setHiddenCols] = useState<Set<string>>(new Set());
+  const [showColMenu, setShowColMenu] = useState(false);
+  const [density, setDensity] = useState<'compact' | 'normal'>('compact');
+  const [page, setPage] = useState(0);
+  const [dynamicPageSize, setDynamicPageSize] = useState(10);
+  const colMenuRef = useRef<HTMLDivElement>(null);
+  const tableWrapRef = useRef<HTMLDivElement>(null);
+
+  // Row & header heights (matches Tailwind py values in the table below)
+  const ROW_H = density === 'compact' ? 28 : 36;
+  const HEADER_H = 33;
+
+  // Recalculate page size whenever the container is resized (e.g. height toggle)
+  useEffect(() => {
+    const el = tableWrapRef.current;
+    if (!el) return;
+    const compute = () => {
+      setDynamicPageSize(Math.max(3, Math.floor((el.clientHeight - HEADER_H) / ROW_H)));
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [density, ROW_H]);
+
+  const PAGE_SIZE = dynamicPageSize;
+  const data: any[] = widget.data;
+
+  useEffect(() => {
+    if (!showColMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (colMenuRef.current && !colMenuRef.current.contains(e.target as Node)) {
+        setShowColMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showColMenu]);
+
+  if (!data.length) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-2 text-muted-foreground">
+        <Table2 size={24} className="opacity-30" />
+        <p className="text-xs">No data available</p>
+      </div>
+    );
+  }
+
+  const allCols = Object.keys(data[0]).filter((k) => !k.startsWith('_'));
+  const visibleCols = allCols.filter((col) => !hiddenCols.has(col));
+
+  const searchLower = search.toLowerCase();
+  const filtered = search
+    ? data.filter((row) => visibleCols.some((col) => String(row[col] ?? '').toLowerCase().includes(searchLower)))
+    : data;
+
+  const sorted = sortKey
+    ? [...filtered].sort((a, b) => {
+        const av = a[sortKey];
+        const bv = b[sortKey];
+        const cmp =
+          typeof av === 'number' && typeof bv === 'number'
+            ? av - bv
+            : String(av ?? '').localeCompare(String(bv ?? ''));
+        return sortDir === 'asc' ? cmp : -cmp;
+      })
+    : filtered;
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+  const currPage = Math.min(page, totalPages - 1);
+  const pageData = sorted.slice(currPage * PAGE_SIZE, (currPage + 1) * PAGE_SIZE);
+
+  const handleSort = (col: string) => {
+    if (sortKey === col) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(col); setSortDir('asc'); }
+    setPage(0);
+  };
+
+  const toggleCol = (col: string) => {
+    setHiddenCols((prev) => {
+      const next = new Set(prev);
+      if (next.has(col)) next.delete(col); else next.add(col);
+      return next;
+    });
+  };
+
+  const exportCSV = () => {
+    const header = visibleCols.join(',');
+    const rows = filtered.map((row) =>
+      visibleCols.map((col) => `"${String(row[col] ?? '').replace(/"/g, '""')}"`).join(',')
+    );
+    const csv = [header, ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${widget.title.replace(/\s+/g, '-').toLowerCase()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const colLabel = (col: string) =>
+    col.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const isNumeric = (val: unknown) =>
+    typeof val === 'number';
+
+  return (
+    <div className="flex flex-col h-full gap-2">
+      {/* Toolbar */}
+      <div className="flex items-center gap-1.5 shrink-0 flex-wrap">
+        {/* Search */}
+        <div className="flex items-center gap-1.5 flex-1 min-w-[120px] bg-muted/50 border border-border/60 rounded-lg px-2.5 py-1 focus-within:border-primary/50 transition-colors">
+          <Search size={11} className="text-muted-foreground shrink-0" />
+          <input
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+            placeholder="Search rows…"
+            className="bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none flex-1 min-w-0"
+          />
+          {search && (
+            <button onClick={() => setSearch('')} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
+              <X size={9} />
+            </button>
+          )}
+        </div>
+
+        {/* Column visibility */}
+        <div className="relative" ref={colMenuRef}>
+          <button
+            onClick={() => setShowColMenu((v) => !v)}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[11px] font-medium transition-all ${
+              showColMenu || hiddenCols.size > 0
+                ? 'bg-primary/10 border-primary/40 text-primary'
+                : 'bg-card border-border text-muted-foreground hover:text-foreground hover:border-primary/40'
+            }`}
+            title="Toggle columns"
+          >
+            <SlidersHorizontal size={11} />
+            Columns
+            {hiddenCols.size > 0 && (
+              <span className="ml-0.5 px-1 rounded-full bg-primary text-primary-foreground text-[9px] font-bold">
+                {allCols.length - hiddenCols.size}/{allCols.length}
+              </span>
+            )}
+          </button>
+          {showColMenu && (
+            <div className="absolute top-full left-0 mt-1 z-30 bg-card border border-border rounded-xl shadow-lg p-2 min-w-[165px]">
+              <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-1 pb-1.5">
+                Show / Hide Columns
+              </p>
+              <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                {allCols.map((col) => (
+                  <button
+                    key={col}
+                    onClick={() => toggleCol(col)}
+                    className="flex items-center gap-2 w-full px-2 py-1 rounded-md hover:bg-muted/60 transition-colors"
+                  >
+                    <div
+                      className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                        !hiddenCols.has(col) ? 'bg-primary border-primary' : 'border-border bg-card'
+                      }`}
+                    >
+                      {!hiddenCols.has(col) && <Check size={8} className="text-primary-foreground" />}
+                    </div>
+                    <span className="text-[11px] text-foreground truncate">{colLabel(col)}</span>
+                  </button>
+                ))}
+              </div>
+              {hiddenCols.size > 0 && (
+                <button
+                  onClick={() => setHiddenCols(new Set())}
+                  className="mt-1.5 w-full text-[10px] text-primary hover:text-primary/80 font-medium px-2 py-1 text-left"
+                >
+                  Show all columns
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Density toggle */}
+        <button
+          onClick={() => setDensity((d) => (d === 'compact' ? 'normal' : 'compact'))}
+          title={`Switch to ${density === 'compact' ? 'normal' : 'compact'} density`}
+          className="px-2 py-1 rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-all bg-card"
+        >
+          {density === 'compact' ? <LayoutList size={11} /> : <LayoutGrid size={11} />}
+        </button>
+
+        {/* Export CSV */}
+        <button
+          onClick={exportCSV}
+          className="flex items-center gap-1 px-2 py-1 rounded-lg border border-border text-[11px] font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 bg-card transition-all"
+          title="Export to CSV"
+        >
+          <Download size={11} />
+          CSV
+        </button>
+
+        {/* Row count */}
+        <span className="text-[10px] text-muted-foreground ml-auto shrink-0">
+          {filtered.length} row{filtered.length !== 1 ? 's' : ''}
+          {search && ` of ${data.length}`}
+        </span>
+      </div>
+
+      {/* Table */}
+      <div ref={tableWrapRef} className="flex-1 overflow-auto rounded-lg border border-border/60 min-h-0">
+        <table className="w-full text-[11px] border-collapse">
+          <thead className="sticky top-0 z-10 bg-muted/90 backdrop-blur-sm">
+            <tr>
+              {visibleCols.map((col) => (
+                <th
+                  key={col}
+                  onClick={() => handleSort(col)}
+                  className="text-left px-2.5 py-2 font-semibold text-foreground/80 whitespace-nowrap cursor-pointer hover:bg-muted transition-colors select-none border-b border-border"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>{colLabel(col)}</span>
+                    {sortKey === col ? (
+                      sortDir === 'asc'
+                        ? <ArrowUp size={9} className="text-primary shrink-0" />
+                        : <ArrowDown size={9} className="text-primary shrink-0" />
+                    ) : (
+                      <ArrowUpDown size={9} className="text-muted-foreground/40 shrink-0" />
+                    )}
+                  </div>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {pageData.map((row, i) => (
+              <tr
+                key={i}
+                className={`border-b border-border/40 last:border-0 hover:bg-primary/5 transition-colors ${i % 2 !== 0 ? 'bg-muted/20' : ''}`}
+              >
+                {visibleCols.map((col) => {
+                  const val = row[col];
+                  const num = isNumeric(val);
+                  const numVal = num ? Number(val) : null;
+                  const isNeg = numVal !== null && numVal < 0;
+                  return (
+                    <td
+                      key={col}
+                      className={`px-2.5 whitespace-nowrap ${density === 'compact' ? 'py-1.5' : 'py-2.5'} ${num ? 'text-right font-mono' : ''} ${
+                        isNeg ? 'text-destructive' : num && numVal !== null && numVal > 0 ? 'text-emerald-700' : 'text-foreground'
+                      }`}
+                    >
+                      {num && numVal !== null ? numVal.toLocaleString() : String(val ?? '—')}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between shrink-0">
+          <span className="text-[10px] text-muted-foreground">
+            Page {currPage + 1} of {totalPages}
+          </span>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={currPage === 0}
+              className="p-1 rounded-md border border-border text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all bg-card"
+            >
+              <ChevronLeft size={12} />
+            </button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+              const offset = Math.max(0, Math.min(currPage - 2, totalPages - 5));
+              const pageNum = offset + i;
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setPage(pageNum)}
+                  className={`w-6 h-6 rounded-md text-[10px] font-medium transition-all ${
+                    pageNum === currPage
+                      ? 'bg-primary text-primary-foreground'
+                      : 'border border-border text-muted-foreground hover:text-foreground bg-card'
+                  }`}
+                >
+                  {pageNum + 1}
+                </button>
+              );
+            })}
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={currPage >= totalPages - 1}
+              className="p-1 rounded-md border border-border text-muted-foreground hover:text-foreground disabled:opacity-30 transition-all bg-card"
+            >
+              <ChevronRight size={12} />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Sortable Widget Card ─────────────────────────────────────────────────────
 
 function SortableWidget({
@@ -791,6 +1122,7 @@ function SortableWidget({
   sourceId,
   onDelete,
   onToggleSpan,
+  onToggleHeight,
   onUpdatePrompt,
   onUpdateTitle,
   onUpdateFilterKey,
@@ -805,6 +1137,7 @@ function SortableWidget({
   sourceId: string;
   onDelete: (id: string) => void;
   onToggleSpan: (id: string) => void;
+  onToggleHeight: (id: string) => void;
   onUpdatePrompt: (id: string, prompt: string) => void;
   onUpdateTitle: (id: string, title: string) => void;
   onUpdateFilterKey: (id: string, key: string) => void;
@@ -830,9 +1163,14 @@ function SortableWidget({
   const commentInputRef = useRef<HTMLInputElement>(null);
   const isFilter = widget.type.startsWith('filter');
   const isText = widget.type === 'text';
+  const isReport = widget.type === 'report';
   const currentFilter = activeFilters.find((f) => f.key === (widget.filterKey || widget.id));
 
   const spanClass = widget.span === 3 ? 'col-span-3' : widget.span === 2 ? 'col-span-2' : 'col-span-1';
+  const h = (widget.height ?? 1) as 1 | 2 | 3;
+  // h=3 → full viewport height; handled via inline style to escape the fixed 220px grid track
+  const rowSpanClass = h === 2 ? 'row-span-2' : h === 1 ? 'row-span-1' : '';
+  const fullHeightStyle = h === 3 ? { gridRow: 'span 5 / span 5' } : {};
 
   const insight = widget.aiInsight ?? generateAIInsight(widget);
 
@@ -861,12 +1199,12 @@ function SortableWidget({
     <motion.div
       data-widget-id={widget.id}
       ref={setNodeRef}
-      style={style}
+      style={{ ...style, ...fullHeightStyle }}
       layout="position"
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.9 }}
-      className={`${spanClass} citi-card flex flex-col group`}
+      className={`${spanClass} ${rowSpanClass} citi-card flex flex-col group`}
     >
       {/* Header */}
       <div className="flex items-center gap-2 px-4 pt-3 pb-2 border-b border-border/40">
@@ -888,6 +1226,15 @@ function SortableWidget({
           {widget.span === 1 ? <LayoutList size={13} /> : <LayoutGrid size={13} />}
         </button>
 
+        {/* Height toggle */}
+        <button
+          onClick={() => onToggleHeight(widget.id)}
+          className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-foreground transition-all"
+          title={`Toggle height (${(widget.height ?? 1) === 1 ? 'SM' : (widget.height ?? 1) === 2 ? 'MD' : 'LG'})`}
+        >
+          <ArrowUpDown size={13} />
+        </button>
+
         {/* Download PNG */}
         <button
           onClick={handleDownloadPng}
@@ -897,8 +1244,8 @@ function SortableWidget({
           <Download size={13} />
         </button>
 
-        {/* Edit button – opens full dialog (not for text) */}
-        {!isText && (
+        {/* Edit button – opens full dialog (not for text/report) */}
+        {!isText && !isReport && (
           <button
             onClick={() => setEditDialogOpen(true)}
             className="opacity-0 group-hover:opacity-100 flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/20 text-[10px] font-medium transition-all"
@@ -919,8 +1266,8 @@ function SortableWidget({
         </button>
       </div>
 
-      {/* Content */}
-      <div className={isText ? 'flex-1 min-h-[140px] p-4' : 'h-[200px] shrink-0 p-4'}>
+      {/* Content — fills remaining card height (row-span controls the cell size) */}
+      <div className={`flex-1 min-h-0 ${isReport ? 'p-3' : 'p-4'}`}>
         {widget.loading ? (
           <div className="flex flex-col items-center justify-center h-full gap-3 text-muted-foreground">
             <div className="flex items-center gap-2">
@@ -964,6 +1311,8 @@ function SortableWidget({
             sourceId={sourceId}
             activeFilters={activeFilters}
           />
+        ) : isReport ? (
+          <ReportWidget widget={widget} />
         ) : (
           <ChartContent widget={widget} activeFilters={activeFilters} dataSchema={dataSchema} onApplyFilter={onFilter} />
         )}
@@ -1104,18 +1453,47 @@ const QUICK_ADD_DEFS: {
   { type: 'grid',          label: 'Grid',    icon: Table2,     defaultTitle: 'Data Grid',          defaultPrompt: 'Show data as tabular grid'               },
   { type: 'text',          label: 'Text',    icon: FileText,   defaultTitle: 'Report Section',     defaultPrompt: 'Enter your report text here…'            },
   { type: 'filter-select', label: 'Filter',  icon: Filter,     defaultTitle: 'Filter: Industries', defaultPrompt: 'industries'                              },
+  { type: 'report',        label: 'Report',  icon: Table2,     defaultTitle: 'Data Report',        defaultPrompt: 'Show all data in a detailed report table' },
 ];
+
+const SOURCE_SUGGESTIONS: Record<string, string[]> = {
+  'citi-financial-summary': [
+    'Citi executive: period filter, Total Assets, Deposits & Equity KPIs, and full report',
+    'Show Basel III ratios: CET1, Tier 1 & Total Capital bar chart with compliance KPIs',
+    'Add ROTA, ROCE & RoTCE profitability KPIs with 5-year category bar chart',
+    'Show TBVPS growth as area chart, Dividend Payout KPI, and Efficiency Ratio trend',
+    'Build full Citi dashboard: category heatmap, capital KPIs, and financial report',
+    'Show Citi balance sheet metrics across 2020–2024 by year as bar chart with report',
+    'Add Efficiency Ratio line chart 2020–2024 with performance metrics filter and text summary',
+  ],
+  'global-trade': [
+    'Create a full trade overview with KPIs, bar chart, and filters',
+    'Show me a pie chart of industry distribution and a monthly area trend',
+    'Add a heatmap of all trade metrics across months',
+    'Build a complete manufacturing risk dashboard',
+    'Add KPI for total value, show previous vs current as line chart',
+    'Add a range filter for trade value and a pie by products',
+    'Show me just the top 3 metrics as KPI cards',
+  ],
+};
+
+const SOURCE_PLACEHOLDERS: Record<string, string> = {
+  'citi-financial-summary': "e.g. 'Show CET1 & Tier 1 capital ratio KPIs with 5-year trend' or 'Citi executive dashboard'",
+  'global-trade': "e.g. 'Add a trade trend chart and a total value KPI' or 'Full trade overview with filters'",
+};
 
 function DashboardCommandBar({
   onAiSend,
   onQuickAdd,
   aiLoading,
   lastAiMessage,
+  sourceId,
 }: {
   onAiSend: (text: string) => void;
   onQuickAdd: (type: ChartType, title: string, prompt: string) => void;
   aiLoading: boolean;
   lastAiMessage: AiChatMessage | null;
+  sourceId: string;
 }) {
   const [draft, setDraft] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -1135,15 +1513,7 @@ function DashboardCommandBar({
     onAiSend(text);
   };
 
-  const SUGGESTIONS = [
-    'Create a full trade overview with KPIs, bar chart, and filters',
-    'Show me a pie chart of industry distribution and a monthly area trend',
-    'Add a heatmap of all trade metrics across months',
-    'Build a complete manufacturing risk dashboard',
-    'Add KPI for total value, show previous vs current as line chart',
-    'Add a range filter for trade value and a pie by products',
-    'Show me just the top 3 metrics as KPI cards',
-  ];
+  const SUGGESTIONS = SOURCE_SUGGESTIONS[sourceId] ?? SOURCE_SUGGESTIONS['global-trade'];
 
   return (
     <div className="mb-6 space-y-2.5">
@@ -1157,7 +1527,7 @@ function DashboardCommandBar({
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') handleSend(); }}
-          placeholder="Describe your dashboard… e.g. 'Add a trade trend chart and a total value KPI'"
+          placeholder={SOURCE_PLACEHOLDERS[sourceId] ?? SOURCE_PLACEHOLDERS['global-trade']}
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none min-w-0"
         />
         {draft && (
@@ -1640,7 +2010,10 @@ function createWidget(type: ChartType, title: string, prompt: string, sourceId: 
     title: normalizedTitle || fallbackTitle,
     prompt: normalizedPrompt || normalizedTitle || typeLabel,
     data: [],
-    span: type === 'kpi' ? 1 : type.startsWith('filter') ? 1 : type === 'text' ? 3 : 2,
+    span: type === 'kpi' ? 1 : type.startsWith('filter') ? 1 : (type === 'text' || type === 'report') ? 3 : 2,
+    height: (type === 'kpi' || type.startsWith('filter') || type === 'pie') ? 1
+           : (type === 'report' || type === 'text' || type === 'heatmap') ? 3
+           : 2, // bar, area, line, grid default to medium-tall
     loading: type === 'text' ? false : true,
     filterKey: type.startsWith('filter') ? (normalizedPrompt || 'name') : undefined,
     config: defaultChartConfig(type),
@@ -1855,6 +2228,17 @@ export function DashboardGenerator() {
     );
   }, []);
 
+  const handleToggleHeight = useCallback((id: string) => {
+    setWidgets((prev) =>
+      prev.map((w) => {
+        if (w.id !== id) return w;
+        const cur = (w.height ?? 1) as 1 | 2 | 3;
+        const nextHeight: 1 | 2 | 3 = cur === 1 ? 2 : cur === 2 ? 3 : 1;
+        return { ...w, height: nextHeight };
+      })
+    );
+  }, []);
+
   const handleUpdateFilterKey = useCallback((widgetId: string, nextFilterKey: string) => {
     const widget = widgets.find((item) => item.id === widgetId);
     const oldFilterKey = widget?.filterKey;
@@ -1987,7 +2371,7 @@ export function DashboardGenerator() {
       }
 
       // Apply widget actions returned by the LLM
-      const actions: Array<{ type: string; widgetType: ChartType; title: string; prompt: string; span?: 1 | 2 | 3; xAxisKey?: string }> =
+      const actions: Array<{ type: string; widgetType: ChartType; title: string; prompt: string; span?: 1 | 2 | 3; height?: 1 | 2 | 3; xAxisKey?: string }> =
         Array.isArray(payload.actions) ? payload.actions : [];
 
       let added = 0;
@@ -2000,6 +2384,7 @@ export function DashboardGenerator() {
             sourceId,
           );
           if (action.span) widget.span = action.span;
+          if (action.height) widget.height = action.height;
           // Apply the xAxisKey the LLM chose — overrides the default 'name'
           if (action.xAxisKey && widget.config) {
             widget.config = { ...widget.config, xAxisKey: action.xAxisKey };
@@ -2225,6 +2610,7 @@ export function DashboardGenerator() {
           onQuickAdd={handleAddWidget}
           aiLoading={aiLoading}
           lastAiMessage={lastAiMessage}
+          sourceId={sourceId}
         />
         </div>
 
@@ -2282,7 +2668,7 @@ export function DashboardGenerator() {
             onDragEnd={handleDragEnd}
           >
             <SortableContext items={widgets.map((w) => w.id)} strategy={rectSortingStrategy}>
-              <div className="grid grid-cols-3 gap-4 auto-rows-auto" data-dashboard-grid>
+              <div className="grid grid-cols-3 gap-4" style={{ gridAutoRows: '220px' }} data-dashboard-grid>
                 <AnimatePresence>
                   {widgets.map((widget) => (
                     <SortableWidget
@@ -2293,6 +2679,7 @@ export function DashboardGenerator() {
                       sourceId={widget.sourceId}
                       onDelete={handleDelete}
                       onToggleSpan={handleToggleSpan}
+                      onToggleHeight={handleToggleHeight}
                       onUpdatePrompt={handleUpdatePrompt}
                       onUpdateTitle={handleUpdateTitle}
                       onUpdateFilterKey={handleUpdateFilterKey}

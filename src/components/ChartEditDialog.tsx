@@ -13,7 +13,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type ChartType = 'bar' | 'area' | 'line' | 'pie' | 'heatmap' | 'filter-select' | 'filter-range' | 'kpi' | 'grid' | 'text';
+export type ChartType = 'bar' | 'area' | 'line' | 'pie' | 'heatmap' | 'filter-select' | 'filter-range' | 'kpi' | 'grid' | 'text' | 'report';
 
 export interface ChartYKey {
   key: string;
@@ -658,6 +658,8 @@ export function ChartEditDialog({ widget, open, onClose, onSave, schemaKeys, onF
 
   const isFilter = draftType.startsWith('filter');
   const isText = draftType === 'text';
+  const isKpi = draftType === 'kpi';
+  const isGrid = draftType === 'grid';
 
   const tabs: { id: TabId; label: string; disabled?: boolean }[] = [
     { id: 'prompt', label: isText ? '✦ Text' : '✦ Prompt' },
@@ -674,18 +676,26 @@ export function ChartEditDialog({ widget, open, onClose, onSave, schemaKeys, onF
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent
-        className="p-0 gap-0 overflow-hidden border-0 shadow-2xl [&>button:last-child]:hidden"
+        className="p-0 gap-0 flex flex-col overflow-hidden border-0 shadow-2xl [&>button:last-child]:hidden"
         style={{ width: '98vw', maxWidth: '98vw', height: '92vh', maxHeight: '92vh' }}
       >
         {/* Top bar */}
         <div className="flex items-center justify-between px-6 py-3.5 border-b border-border bg-card/80 backdrop-blur-sm shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
-              <BarChart3 size={16} className="text-primary" />
+              {isKpi ? <TrendingUp size={16} className="text-primary" />
+                : isGrid ? <Table2 size={16} className="text-primary" />
+                : isFilter ? <Sliders size={16} className="text-primary" />
+                : isText ? <FileText size={16} className="text-primary" />
+                : <BarChart3 size={16} className="text-primary" />}
             </div>
             <div>
-              <h2 className="text-sm font-semibold text-foreground leading-tight">{draftTitle || 'Edit Chart'}</h2>
-              <p className="text-[11px] text-muted-foreground">Prompt-first chart editor</p>
+              <h2 className="text-sm font-semibold text-foreground leading-tight">
+                {draftTitle || (isKpi ? 'Edit KPI' : isGrid ? 'Edit Data Grid' : isFilter ? 'Edit Filter' : isText ? 'Edit Text' : 'Edit Chart')}
+              </h2>
+              <p className="text-[11px] text-muted-foreground">
+                {isKpi ? 'KPI widget settings' : isGrid ? 'Data grid settings' : isFilter ? 'Filter widget settings' : isText ? 'Text widget settings' : 'Prompt-first chart editor'}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -765,7 +775,7 @@ export function ChartEditDialog({ widget, open, onClose, onSave, schemaKeys, onF
 
           {/* Right: tabs */}
           <div className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
-            <div className="flex gap-0.5 px-5 pt-3 border-b border-border shrink-0">
+            <div className="flex gap-0.5 px-6 pt-3 border-b border-border shrink-0">
               {tabs.map((tab) => (
                 <button key={tab.id} onClick={() => !tab.disabled && setActiveTab(tab.id)} disabled={tab.disabled}
                   className={`px-4 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-all ${
@@ -814,13 +824,13 @@ export function ChartEditDialog({ widget, open, onClose, onSave, schemaKeys, onF
                         </div>
                       )}
                     </Section>
-                    {!isText && (
+                    {!isText && availableManualShortcuts.length > 0 && (
                       <>
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <div className="h-px flex-1 bg-border" /><span className="text-xs">or edit manually</span><div className="h-px flex-1 bg-border" />
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          {(['axes', 'series', 'style'] as const).map((tab) => (
+                        <div className={`grid gap-2 ${availableManualShortcuts.length === 1 ? 'grid-cols-1' : availableManualShortcuts.length === 2 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+                          {availableManualShortcuts.map((tab) => (
                             <button key={tab} onClick={() => setActiveTab(tab)}
                               className="flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-border bg-card hover:border-primary/50 hover:bg-primary/5 text-sm text-muted-foreground hover:text-foreground transition-all"
                             >
